@@ -1,0 +1,2319 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" id="vp" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<title>工事工程表エディタ</title>
+<style id="pageCss">@page { size: A3 landscape; margin: 6mm; }</style>
+<style>
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html { height:100%; }
+  body { margin:0; padding:0; height:100%; display:flex; flex-direction:column; -webkit-text-size-adjust:100%; overscroll-behavior:none; font-family: "Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif; background:#eef0f3; }
+  button, select, input { font-family: inherit; }
+
+  /* ---------- toolbar ---------- */
+  #toolbar { flex:0 0 auto; z-index:100; display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+             padding:7px 10px; background:#2b3240; color:#fff; font-size:12px; }
+  #toolbar .sep { width:1px; height:20px; background:#4a5464; margin:0 3px; }
+  #toolbar label { display:flex; align-items:center; gap:4px; white-space:nowrap; }
+  #toolbar input[type=date], #toolbar input[type=number] { padding:3px 5px; border:1px solid #5a6474; border-radius:4px; background:#1e242e; color:#fff; font-size:12px; }
+  #toolbar input[type=number] { width:58px; }
+  .tb { padding:5px 10px; border:1px solid #5a6474; background:#39424f; color:#fff; border-radius:5px; cursor:pointer; font-size:12px; white-space:nowrap; }
+  .tb:hover { background:#4a5563; }
+  .tb.pri { background:#1f7a4d; border-color:#2a9c63; }
+  .tb.pri:hover { background:#26925c; }
+  #zoomval { width:38px; text-align:right; display:inline-block; }
+  #hint { margin-left:auto; opacity:.75; font-size:11px; }
+
+  /* ---------- stage ---------- */
+  #stage { flex:1 1 auto; overflow:auto; padding:16px 0; -webkit-overflow-scrolling:touch; }
+  #sheet { background:#fff; box-shadow:0 2px 14px rgba(0,0,0,.16); display:inline-block; padding:14px 16px 12px; margin:0 16px; }
+
+  /* ---------- sheet header ---------- */
+  #shead { display:flex; align-items:flex-start; gap:14px; padding-bottom:8px; }
+  #shead .ttl { font-weight:700; letter-spacing:.35em; white-space:nowrap; }
+  .fld { border:none; border-bottom:1px dotted #bbb; background:transparent; padding:1px 3px; outline:none; }
+  .fld:focus { background:#fffbe6; border-bottom-color:#e8b400; }
+  .lbl { color:#333; white-space:nowrap; }
+  #shead .grpL { display:flex; flex-direction:column; gap:3px; }
+  #shead .grpM { display:flex; flex-direction:column; gap:3px; }
+  #shead .grpR { margin-left:auto; text-align:right; }
+  #shead .cName { font-weight:700; }
+
+  /* ---------- chart ---------- */
+  #chart { position:relative; box-sizing:content-box; border:1px solid #000;
+           -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;
+           -webkit-tap-highlight-color:transparent; }
+  #fills { position:absolute; top:0; bottom:0; z-index:0; pointer-events:none; }
+  .fill { position:absolute; }
+  .rowbg { position:absolute; left:0; right:0; }
+  /* 縦罫線は border で描く（印刷時に背景色をオフにしても消えない） */
+  .vline { position:absolute; width:0; border-left:1px solid #c4c4c4; }
+  /* 縦書きは1文字ずつ積む（ブラウザの縦書き実装に依存しないため） */
+  .vtext { position:absolute; display:flex; flex-direction:column; align-items:center;
+           justify-content:center; font-weight:700; pointer-events:none; overflow:hidden; }
+  .vtext span { display:block; line-height:1.18; text-align:center; }
+
+  .r { display:flex; position:relative; z-index:1; }
+  .rname { position:sticky; left:0; z-index:6; background:#fff; box-shadow:-16px 0 0 #fff; border-right:1px solid #000; border-bottom:1px solid #999;
+           display:flex; align-items:center; justify-content:center; text-align:center; user-select:none; }
+  .rname.sel { box-shadow: inset 0 0 0 2px #2563eb; }
+  /* 工種プルダウン（見た目はただの文字、クリックで一覧） */
+  .rsel { appearance:none; -webkit-appearance:none; border:none; background:transparent; width:100%;
+          font-family:inherit; font-size:inherit; color:inherit; text-align:center; text-align-last:center;
+          cursor:pointer; padding:0 2px; outline:none; }
+  .rsel:hover { background:#eef4ff; }
+  .rname input.rfree { border:none; outline:none; background:#fffbe6; width:100%; text-align:center;
+                       font-family:inherit; font-size:inherit; }
+  .rgrip { position:absolute; left:0; top:0; bottom:0; width:12px; cursor:pointer; background:#eef2f7; }
+  .rgrip:hover { background:#93c5fd; }
+  .track { position:relative; border-bottom:1px solid #999; touch-action:none; }
+
+  /* 指の操作＝スクロール優先に切り替えたとき（1本指で縦スクロール） */
+  body.fingerscroll .track, body.fingerscroll .bar { touch-action:pan-y; }
+
+  /* header rows */
+  .hr .rname { border-bottom:1px solid #000; font-weight:700; }
+  .hr .track { border-bottom:1px solid #000; }
+  .hcell { position:absolute; top:0; bottom:0; display:flex; align-items:center; justify-content:center;
+           border-right:1px solid #bbb; z-index:2; }
+  .hcell.num { cursor:pointer; }
+  .hcell.num:hover { background:rgba(37,99,235,.16); }
+  .hcell.num.sel { box-shadow: inset 0 0 0 2px #2563eb; }
+  .hcell.sat { color:#1560c9; } .hcell.sun { color:#cc0000; }
+  .mblk { position:absolute; top:0; bottom:0; display:flex; align-items:center; justify-content:center;
+          border-right:1px solid #999; z-index:2; font-weight:700; }
+
+  /* bars */
+  .bar { position:absolute; cursor:move; z-index:3; touch-action:none; }
+  .bar .in { position:absolute; top:0; bottom:0; }
+  .bar .ln { position:absolute; left:0; right:0; top:50%; border-top-width:1.4px; border-top-style:solid; }
+  .bar .dot { position:absolute; top:50%; border-radius:50%; }
+  .bar .lab { position:absolute; white-space:pre; line-height:1.22; pointer-events:none; }
+  .bar.sel .ln { border-top-width:2.4px; }
+  .bar.sel { outline:1.5px dashed #2563eb; outline-offset:2px; }
+  .bar .hL, .bar .hR { position:absolute; top:0; bottom:0; width:9px; cursor:ew-resize; touch-action:none; }
+  .bar .hL { left:0; } .bar .hR { right:0; }
+
+  .ghost { position:absolute; background:rgba(37,99,235,.22); border:1px solid #2563eb; z-index:9; pointer-events:none; }
+
+  /* free notes */
+  #notes { position:absolute; top:0; left:0; right:0; bottom:0; z-index:4; pointer-events:none; }
+  .note { position:absolute; white-space:pre; line-height:1.25; pointer-events:auto; cursor:move; padding:1px 3px; touch-action:none; }
+  .note.vert { display:flex; flex-direction:column; align-items:center; white-space:normal; }
+  .note.vert span { display:block; line-height:1.18; text-align:center; }
+  .note.sel { outline:1.5px dashed #2563eb; }
+
+  /* remarks */
+  #remarks { box-sizing:content-box; border:1px solid #000; border-top:none; padding:6px 8px; }
+  #remarks .rt { font-weight:700; margin-bottom:3px; }
+  #remarks textarea { width:100%; border:none; outline:none; resize:none; overflow:hidden; font-family:inherit; background:transparent; }
+
+  /* ---------- 保存・共有メニュー ---------- */
+  #saveMenu { display:none; position:absolute; top:calc(100% + 6px); left:0; z-index:300; width:290px;
+              background:#fff; color:#222; border:1px solid #c3c9d2; border-radius:9px;
+              box-shadow:0 8px 26px rgba(0,0,0,.22); padding:5px; }
+  #saveMenu.on { display:block; }
+  #saveMenu .mi { display:block; width:100%; text-align:left; padding:9px 10px; border:none; background:none;
+                  border-radius:6px; cursor:pointer; font-size:12.5px; color:#111; line-height:1.35; }
+  #saveMenu .mi:hover { background:#eef4ff; }
+  #saveMenu .mi small { display:block; color:#6b7280; font-size:10.5px; margin-top:2px; }
+  #saveMenu .mi[disabled] { opacity:.45; cursor:default; }
+  #saveMenu .hdr { padding:6px 10px 3px; font-size:10.5px; color:#6b7280; font-weight:700; }
+  #saveMenu hr { border:none; border-top:1px solid #e5e7eb; margin:5px 2px; }
+
+  /* ---------- inspector ---------- */
+  #insp { position:relative; flex:0 0 auto; z-index:200; background:#fff; border-top:2px solid #2b3240;
+          box-shadow:0 -3px 14px rgba(0,0,0,.14); padding:9px 12px; display:none; font-size:12px;
+          max-height:42vh; overflow:auto; }
+  #insp.on { display:block; }
+  #insp .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  #insp h4 { margin:0 8px 0 0; font-size:12px; white-space:nowrap; }
+  #insp input[type=text], #insp input[type=number] { padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-size:12px; }
+  #insp textarea { padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-size:12px; font-family:inherit; width:320px; height:52px; resize:vertical; }
+  .btn { padding:4px 9px; border:1px solid #ccc; background:#f6f7f9; border-radius:5px; cursor:pointer; font-size:12px; }
+  .btn:hover { background:#e9ecf1; }
+  .btn.on { background:#2563eb; color:#fff; border-color:#2563eb; }
+  .btn.del { background:#fee2e2; border-color:#fca5a5; color:#b91c1c; }
+  .sw { width:24px; height:22px; border:1px solid #999; border-radius:4px; cursor:pointer; }
+  .sw.on { box-shadow:0 0 0 2px #2563eb; }
+  #insp .close { position:absolute; right:10px; top:8px; }
+
+  /* ---------- 指で操作する端末：入力欄は16px以上（これ未満だとiOSが勝手に画面を拡大する） ---------- */
+  @media (pointer: coarse) {
+    #toolbar input, #toolbar select,
+    #insp input, #insp select, #insp textarea { font-size:16px !important; }
+    #toolbar input[type=number] { width:70px !important; }
+    #insp textarea { width:min(340px, calc(100vw - 40px)); }
+    #toolbar, #insp { touch-action:manipulation; }
+  }
+
+  /* ---------- 処理中の表示 ---------- */
+  #busy { display:none; position:fixed; inset:0; z-index:900; align-items:center; justify-content:center;
+          background:rgba(20,24,31,.45); color:#fff; font-size:15px; font-weight:700; }
+
+  /* ---------- 画像で分割印刷するとき ---------- */
+  #printImgs { display:none; }
+
+  /* ---------- 復元バー ---------- */
+  #restoreBar { display:none; flex:0 0 auto; align-items:center; gap:8px; padding:7px 12px;
+                background:#fff7d6; border-bottom:1px solid #e6cf7a; font-size:12px; color:#5b4a00; }
+  #restoreBar.on { display:flex; }
+  #restoreBar .tb { background:#5b4a00; border-color:#5b4a00; }
+
+  /* ---------- 狭い画面（スマホ） ---------- */
+  @media (max-width: 760px) {
+    #toolbar { padding:5px 7px; gap:4px; font-size:11px; }
+    .tb { padding:6px 8px; font-size:11px; }
+    #toolbar label { gap:3px; }
+    #hint { display:none; }
+    #insp { max-height:52vh; padding:8px 10px 10px; }
+    #insp textarea { width:100%; height:46px; }
+    #insp .row { gap:6px; row-gap:7px; }
+    #insp h4 { width:100%; margin-bottom:2px; }
+    .btn { padding:7px 11px; }
+    .sw { width:28px; height:26px; }
+    #insp .close { position:static; margin-left:auto; }
+    #saveMenu { width:min(290px, calc(100vw - 24px)); }
+    #stage { padding:8px 0; }
+    #sheet { margin:0 10px; }
+  }
+
+  /* ---------- print ---------- */
+  @media print {
+    #toolbar, #insp, #hint, #restoreBar, #busy { display:none !important; }
+    body.imgprint > * { display:none !important; }
+    body.imgprint #printImgs { display:block !important; }
+    #printImgs img { width:100%; display:block; }
+    #printImgs .pg { page-break-after:always; break-after:page; }
+    #printImgs .pg:last-child { page-break-after:auto; break-after:auto; }
+    html,body { background:#fff; }
+    #stage { overflow:visible; height:auto; padding:0; }
+    #sheet { box-shadow:none; padding:0; transform: scale(var(--ps,1)); transform-origin: top left; }
+    .rname { position:static !important; }
+    .fld { border-bottom:none; }
+    .rname:hover, .hcell.num:hover { background:transparent; }
+    .bar.sel { outline:none; } .note.sel { outline:none; }
+    #remarks textarea { resize:none; overflow:hidden; }
+    .rgrip { display:none; }
+    .rsel:hover { background:transparent; }
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <button class="tb" id="btnUndo" title="元に戻す (Ctrl+Z)">↶</button>
+  <button class="tb" id="btnRedo" title="やり直す (Ctrl+Y)">↷</button>
+  <span class="sep"></span>
+  <button class="tb" id="btnNew">新規</button>
+  <button class="tb" id="btnLoad">読込</button>
+  <span style="position:relative">
+    <button class="tb pri" id="btnSave">保存・共有 ▾</button>
+    <div id="saveMenu"></div>
+  </span>
+  <button class="tb pri" id="btnPdf">PDFを作る</button>
+  <select id="inPaper" style="padding:3px 5px;border:1px solid #5a6474;border-radius:4px;background:#1e242e;color:#fff;font-size:12px">
+    <option value="a3">A3横1枚</option>
+    <option value="a4">A4横1枚</option>
+    <option value="b4">B4横1枚</option>
+    <option value="a4x2">A4横2枚（前半・後半）</option>
+  </select>
+  <span class="sep"></span>
+  <label>着工日 <input type="date" id="inStart"></label>
+  <label>日数 <input type="number" id="inDays" min="5" max="200"></label>
+  <label>休み
+    <select id="inRest" style="padding:3px 5px;border:1px solid #5a6474;border-radius:4px;background:#1e242e;color:#fff;font-size:12px">
+      <option value="0">日曜のみ</option>
+      <option value="06">土日</option>
+      <option value="">なし</option>
+    </select>
+  </label>
+  <label style="gap:3px"><input type="checkbox" id="inHoli"> 祝日も休み</label>
+  <button class="tb" id="btnRest">N日おきに塗る</button>
+  <span class="sep"></span>
+  <button class="tb" id="btnAddRow">行を追加</button>
+  <button class="tb" id="btnAddSp">空行を追加</button>
+  <button class="tb" id="btnFit">画面に合わせる</button>
+  <button class="tb" id="btnFinger" title="1本指の役割を切り替えます">指：編集</button>
+  <button class="tb" id="btnAddNote">注記を追加</button>
+  <span class="sep"></span>
+  <label>拡大 <input type="range" id="inZoom" min="35" max="220" step="5"><span id="zoomval"></span></label>
+  <button class="tb" id="btnHelp" title="ショートカット一覧">?</button>
+  <span id="hint">ドラッグ＝バー作成／端をつまむ＝伸縮／ドラッグ＝バー作成／ダブルクリック＝1日バー／端をつまむ＝伸縮／Shift+クリック＝複数選択／番号クリック＝列の色</span>
+</div>
+
+<div id="restoreBar">
+  <span id="restoreMsg"></span>
+  <button class="tb" id="btnRestore">前回の続きを復元</button>
+  <button class="tb" id="btnDiscard">破棄</button>
+</div>
+<div id="stage">
+  <div id="sheet">
+    <div id="shead">
+      <div class="grpL">
+        <div>
+          <span class="ttl">工 事 工 程 表</span>
+          <input class="fld" id="fProject" style="width:300px;font-size:14px;font-weight:700" placeholder="現場名・工事名">
+        </div>
+        <div><span class="lbl">住所：</span><input class="fld" id="fAddr" style="width:340px" placeholder="〒000-0000　○○"></div>
+      </div>
+      <div class="grpM">
+        <div><span class="lbl">工期：</span><input class="fld" id="fTerm1" style="width:150px" placeholder="00年00月00日 －"></div>
+        <div><span class="lbl">　　　</span><input class="fld" id="fTerm2" style="width:150px" placeholder="－ 00年00月00日"></div>
+      </div>
+      <div class="grpM">
+        <div><span class="lbl">監理：</span><input class="fld" id="fKanri" style="width:150px"></div>
+        <div><span class="lbl">tel　：</span><input class="fld" id="fTel" style="width:150px"></div>
+      </div>
+      <div class="grpR">
+        <div><input class="fld cName" id="fCo" style="width:220px;text-align:right;font-size:14px" placeholder="会社名"></div>
+        <div><input class="fld" id="fCoAddr" style="width:300px;text-align:right;font-size:10px" placeholder="〒000-0000　○○"></div>
+      </div>
+    </div>
+
+    <div id="chart">
+      <div id="fills"></div>
+      <div id="head"></div>
+      <div id="rows"></div>
+      <div id="notes"></div>
+    </div>
+
+    <div id="remarks">
+      <div class="rt">【特記事項】</div>
+      <textarea id="fRemarks" rows="3"></textarea>
+    </div>
+  </div>
+</div>
+
+<div id="printImgs"></div>
+
+<div id="insp"><div class="row" id="inspBody"></div></div>
+<input type="file" id="fileIn" accept=".json,application/json" style="display:none">
+
+<script>
+"use strict";
+
+/* =========================================================
+   定数（z=1 のときの寸法 ＝ 印刷時の基準寸法）
+   ========================================================= */
+const BASE = { COLW:30, NAMEW:118, ROWH:46, LANEH:30, LABGAP:4, HM:14, HN:16, HD:13, HW:13, FS:10.5, NAMEFS:11.5, HFS:9.5 };
+
+/* 工種プルダウンの選択肢 */
+const TRADES = ["仮設工事","解体工事","軽鉄工事","造作工事","家具工事","塗装工事","表装工事","床工事",
+                "ガラス工事","シート工事","電気工事","給排水工事","換気工事","空調工事","弱電工事",
+                "厨房工事","ガス工事","B工事"];
+const COLORS = { black:"#000000", red:"#e60012", blue:"#1e56c8", green:"#0a7a3c" };
+const FILLS = { none:"", gray:"#d9d9d9", yellow:"#ffff00", pink:"#ffd6e7", blue:"#cfe8ff", green:"#d8f0d8" };
+
+let z = 1;
+let uid = 1;
+const nid = () => "x" + (uid++);
+
+/* =========================================================
+   初期データ（参考PDFの工種構成）
+   ========================================================= */
+/* 工種名は最初はすべて空欄。行の左端をクリックすると工種のプルダウンが開く */
+function defaultRows() {
+  const rows = [];
+  for (let i = 0; i < 18; i++) rows.push({ id:nid(), type:"work", name:"", bg:"", h:BASE.ROWH });
+  return rows;
+}
+
+function blankState() {
+  return {
+    meta: {
+      project:"", addr:"", term1:"", term2:"", kanri:"", tel:"",
+      co:"", coAddr:"", termAuto:true
+    },
+    startDate: "",
+    days: 44,
+    restWeekdays: [0],       // 0=日, 6=土
+    useHolidays: true,       // 祝日も休みにする
+    cols: {},                // { "7": {fill:"gray", vtext:"", vcolor:"#000"} }
+    rows: defaultRows(),
+    bars: [],
+    notes: [],
+    remarks: "■日中工事時間：－－－－－－－－－－－－－\n■夜間工事時間：－－－－－－－－－－－－－"
+  };
+}
+
+let S = blankState();
+let sel = null;   // {kind:'bar'|'row'|'col'|'note', id/index}
+
+/* =========================================================
+   日本の祝日
+   ========================================================= */
+const HOLI_CACHE = {};
+function holidaysOf(year) {
+  if (HOLI_CACHE[year]) return HOLI_CACHE[year];
+  const H = {};
+  const key = (m,d) => m + "-" + d;
+  const add = (m,d,n) => { if (d>=1) H[key(m,d)] = n; };
+  const nthMon = (m,n) => {
+    const dow1 = new Date(year, m-1, 1).getDay();
+    return 1 + ((8 - dow1) % 7) + (n-1)*7;
+  };
+  add(1,1,"元日");
+  add(1,nthMon(1,2),"成人の日");
+  add(2,11,"建国記念の日");
+  if (year >= 2020) add(2,23,"天皇誕生日");
+  add(3, Math.floor(20.8431 + 0.242194*(year-1980) - Math.floor((year-1980)/4)), "春分の日");
+  add(4,29,"昭和の日");
+  add(5,3,"憲法記念日"); add(5,4,"みどりの日"); add(5,5,"こどもの日");
+  add(7, nthMon(7,3), "海の日");
+  if (year >= 2016) add(8, 11, "山の日");
+  add(9,nthMon(9,3),"敬老の日");
+  add(9, Math.floor(23.2488 + 0.242194*(year-1980) - Math.floor((year-1980)/4)), "秋分の日");
+  add(10, nthMon(10,2), year >= 2020 ? "スポーツの日" : "体育の日");
+  add(11,3,"文化の日"); add(11,23,"勤労感謝の日");
+  // 年ごとの特例（東京五輪の移動・即位の礼・旧天皇誕生日）
+  const del = k => { delete H[k]; };
+  if (year <= 2018) { del("2-23"); add(12, 23, "天皇誕生日"); }
+  if (year === 2019) {
+    del("2-23");
+    add(4, 30, "国民の休日"); add(5, 1, "天皇の即位の日"); add(5, 2, "国民の休日");
+    add(10, 22, "即位礼正殿の儀の行われる日");
+  }
+  if (year === 2020) {
+    del("7-" + nthMon(7,3)); add(7, 23, "海の日");
+    del("10-" + nthMon(10,2)); add(7, 24, "スポーツの日");
+    del("8-11"); add(8, 10, "山の日");
+  }
+  if (year === 2021) {
+    del("7-" + nthMon(7,3)); add(7, 22, "海の日");
+    del("10-" + nthMon(10,2)); add(7, 23, "スポーツの日");
+    del("8-11"); add(8, 8, "山の日");
+  }
+
+  // 国民の休日（敬老の日と秋分の日の間が1日だけ空くとき）
+  const keiro = nthMon(9,3);
+  const shubun = Math.floor(23.2488 + 0.242194*(year-1980) - Math.floor((year-1980)/4));
+  if (shubun - keiro === 2) add(9, keiro+1, "国民の休日");
+  // 振替休日
+  const list = Object.keys(H).slice();
+  list.forEach(k => {
+    const [m,d] = k.split("-").map(Number);
+    if (new Date(year, m-1, d).getDay() === 0) {
+      let dt = new Date(year, m-1, d+1);
+      while (H[key(dt.getMonth()+1, dt.getDate())]) dt = new Date(year, dt.getMonth(), dt.getDate()+1);
+      H[key(dt.getMonth()+1, dt.getDate())] = "振替休日";
+    }
+  });
+  HOLI_CACHE[year] = H;
+  return H;
+}
+function dateOfDay(i) { // i = 1..days
+  if (!S.startDate) return null;
+  const p = S.startDate.split("-").map(Number);
+  const d = new Date(p[0], p[1]-1, p[2]);
+  d.setDate(d.getDate() + (i-1));
+  return d;
+}
+function isHoliday(d) { return !!holidaysOf(d.getFullYear())[(d.getMonth()+1) + "-" + d.getDate()]; }
+function holidayName(d) { return holidaysOf(d.getFullYear())[(d.getMonth()+1) + "-" + d.getDate()] || ""; }
+function isRest(d) { return S.restWeekdays.indexOf(d.getDay()) >= 0 || (S.useHolidays && isHoliday(d)); }
+
+/* =========================================================
+   寸法ヘルパ
+   ========================================================= */
+const P  = v => v * z;                       // 基準px → 画面px
+const CW = () => BASE.COLW * z;
+const NW = () => BASE.NAMEW * z;
+const trackW = () => S.days * CW();
+/* 各行は box-sizing:border-box なので、指定した高さに枠線が含まれる（+1しない） */
+const headH  = () => S.startDate ? P(BASE.HM + BASE.HN + BASE.HD + BASE.HW)
+                                 : P(BASE.HN + BASE.HD);
+
+function colInfo(i) {
+  const c = S.cols[i] || {};
+  let fill = c.fill || "";
+  if (!fill) {   // 未指定の列だけ、着工日があれば土日祝を自動でグレーに
+    const d = dateOfDay(i);
+    if (d && isRest(d)) fill = "gray";
+  }
+  return { fill, vtext: c.vtext || "", vcolor: c.vcolor || "#000000", raw: c };
+}
+
+/* =========================================================
+   描画
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const el = (t, cls, css) => { const e = document.createElement(t); if (cls) e.className = cls; if (css) Object.assign(e.style, css); return e; };
+
+
+/* =========================================================
+   操作履歴（元に戻す／やり直す）・クリップボード・繰り返し
+   ========================================================= */
+const HIST = { stack: [], idx: -1, t: null, first: 0 };
+function histPush() {
+  const snap = JSON.stringify(S);
+  if (snap === HIST.stack[HIST.idx]) return;          // 変化なしなら積まない
+  HIST.stack = HIST.stack.slice(0, HIST.idx + 1);
+  HIST.stack.push(snap);
+  if (HIST.stack.length > 60) HIST.stack.shift();                       // 件数の上限
+  let bytes = 0; for (let i = 0; i < HIST.stack.length; i++) bytes += HIST.stack[i].length;
+  while (HIST.stack.length > 10 && bytes > 4000000) bytes -= HIST.stack.shift().length;  // 総量の上限
+  HIST.idx = HIST.stack.length - 1;
+  HIST.first = 0;
+  if (typeof markDirty === "function") markDirty();
+}
+/* render() のたびに呼ばれる。連続操作は1件にまとめるが、
+   まとめ続けて履歴が飛ぶのを防ぐため、最初の変化から 700ms で必ず1件記録する */
+function touch() {
+  if (!HIST.first) HIST.first = Date.now();
+  clearTimeout(HIST.t);
+  const wait = Math.min(350, Math.max(0, HIST.first + 700 - Date.now()));
+  HIST.t = setTimeout(histPush, wait);
+}
+function histApply() {
+  S = JSON.parse(HIST.stack[HIST.idx]);
+  sel = null; MULTI = []; syncFields(); render(); refreshInsp(); markDirty();
+}
+function undo() { clearTimeout(HIST.t); histPush(); if (HIST.idx > 0) { HIST.idx--; histApply(); } }
+function redo() { if (HIST.idx < HIST.stack.length - 1) { HIST.idx++; histApply(); } }
+
+let MULTI = [];         // 複数選択中のバーID
+const isSelBar = id => MULTI.indexOf(id) >= 0;
+const selBars  = () => MULTI.map(id => S.bars.find(b => b.id === id)).filter(Boolean);
+
+let CLIP = null;        // コピーしたバー／注記
+let LASTFMT = null;     // F4で繰り返す直前の書式変更 {k, v}
+
+function copySel() {
+  if (!sel) return false;
+  if (sel.kind === "bar") {
+    const bs = selBars(); if (!bs.length) return false;
+    CLIP = { kind:"bars", data: JSON.parse(JSON.stringify(bs)) }; return true;
+  }
+  if (sel.kind === "note") { const n = S.notes.find(x => x.id === sel.id); if (n) { CLIP = { kind:"note", data: JSON.parse(JSON.stringify(n)) }; return true; } }
+  return false;
+}
+function pasteClip() {
+  if (!CLIP) return;
+  if (CLIP.kind === "bars" && !S.rows.some(r => r.type !== "spacer")) { alert("バーを置ける行がありません。先に行を追加してください。"); return; }
+  if (CLIP.kind === "bars") {
+    const src = CLIP.data;
+    const baseRi = S.rows.findIndex(r => r.id === src[0].row);
+    // 貼り付け先＝行を選んでいればその行、バーを選んでいればその行、なければコピー元の行
+    let target = baseRi;
+    if (sel && sel.kind === "row" && S.rows[sel.ri]) target = sel.ri;
+    else if (sel && sel.kind === "bar") { const b = S.bars.find(x => x.id === sel.id); if (b) target = S.rows.findIndex(r => r.id === b.row); }
+    if (target < 0) target = 0;
+    const workAt = k => {                       // 空行は避けて直近の工種行へ
+      for (let i = k; i < S.rows.length; i++) if (S.rows[i].type !== "spacer") return i;
+      for (let i = k; i >= 0; i--) if (S.rows[i] && S.rows[i].type !== "spacer") return i;
+      return -1;
+    };
+    const ids = [];
+    src.forEach(o => {
+      const ri = S.rows.findIndex(r => r.id === o.row);
+      const ni = workAt(Math.max(0, Math.min(S.rows.length - 1, target + (ri - baseRi))));
+      if (ni < 0) return;
+      const nb = Object.assign({}, o, { id:nid(), row:S.rows[ni].id });
+      delete nb.lane;                  // 段は自動で空いている所へ
+      S.bars.push(nb); ids.push(nb.id);
+    });
+    if (!ids.length) return;
+    MULTI = ids; sel = { kind:"bar", id: ids[ids.length - 1] };
+    histPush(); render(); refreshInsp();
+  } else {
+    const nn = Object.assign({}, CLIP.data, { id:nid(), x:CLIP.data.x + 10, y:CLIP.data.y + 10 });
+    if (nn.row) { nn.ox = (nn.ox || 0) + 10; nn.oy = (nn.oy || 0) + 10; }   // 紐づけ注記も少しずらす
+    S.notes.push(nn); histPush(); select({ kind:"note", id:nn.id });
+  }
+}
+function dupSel() { if (copySel()) pasteClip(); }
+function deleteSel() {
+  if (!sel) return;
+  if (sel.kind === "bar")       { const kill = MULTI.slice(); S.bars = S.bars.filter(b => kill.indexOf(b.id) < 0); select(null); histPush(); }
+  else if (sel.kind === "note") { S.notes = S.notes.filter(n => n.id !== sel.id); select(null); histPush(); }
+}
+function repeatFmt() {
+  if (!LASTFMT || !sel || sel.kind !== "bar") return;
+  const bs = selBars(); if (!bs.length) return;
+  bs.forEach(b => { b[LASTFMT.k] = LASTFMT.v; });
+  histPush(); render(); refreshInsp();
+}
+
+/* --- 段（レーン）計算：同じ日に重なるバーを自動で上下に振り分ける --- */
+function laneMap(rowId) {
+  const bs = S.bars.filter(b => b.row === rowId && b.start <= S.days);   // 範囲外は表示しないだけ
+  const occ = [];   // occ[L] = [[s,e], ...]
+  const map = {};
+  const fits = (L, b) => !(occ[L] || []).some(iv => !(b.end < iv[0] || b.start > iv[1]));
+  const put  = (L, b) => { (occ[L] = occ[L] || []).push([b.start, b.end]); map[b.id] = L; };
+  bs.filter(b => Number.isInteger(b.lane)).sort((a, b) => a.lane - b.lane)
+    .forEach(b => { let L = Math.max(0, b.lane); while (!fits(L, b)) L++; put(L, b); });
+  bs.filter(b => !Number.isInteger(b.lane)).sort((a,b) => a.start - b.start || a.end - b.end)
+    .forEach(b => { let L = 0; while (!fits(L, b)) L++; put(L, b); });
+  return { map, lanes: Math.max(1, occ.length) };
+}
+
+function rowTops(geo) {
+  const t = []; let y = 0;
+  geo.rowH.forEach(h => { t.push(y); y += h; });
+  return t;
+}
+function computeGeo() {
+  const rowH = [], lanesArr = [], maps = [], laneHs = [];
+  S.rows.forEach(r => {
+    if (r.type === "spacer") { rowH.push(r.h); lanesArr.push(0); maps.push({}); laneHs.push(BASE.LANEH); return; }
+    const lm = laneMap(r.id);
+    // ラベルが複数行なら、その分だけ段を高くする（画像でも切れないように）
+    let extra = 0;
+    S.bars.forEach(b => {
+      if (b.row !== r.id || !b.label) return;
+      const lines = String(b.label).split("\n").length;
+      if (lines > 1) extra = Math.max(extra, (lines - 1) * (b.fs || BASE.FS) * 1.22);
+    });
+    const lh = BASE.LANEH + extra;
+    lanesArr.push(lm.lanes); maps.push(lm.map); laneHs.push(lh);
+    rowH.push(Math.max(r.h, lm.lanes * lh + 24));   // 上下に指で掴める余白を残す
+  });
+  return { rowH, lanesArr, maps, laneHs };
+}
+
+let RAF = null;
+function renderSoon() { if (RAF) return; RAF = requestAnimationFrame(() => { RAF = null; render(); }); }
+
+function render() {
+  if (RAF) { cancelAnimationFrame(RAF); RAF = null; }
+  const geo = computeGeo();
+  renderHead();
+  renderRows(geo);
+  renderFills(geo);
+  renderNotes(geo);
+  $("#chart").style.width = (NW() + trackW()) + "px";
+  $("#remarks").style.width = (NW() + trackW() - 16) + "px";   // 左右パディング8px分を引く
+  $("#remarks").style.fontSize = P(10) + "px";
+  $("#shead").style.fontSize = P(11) + "px";
+  document.querySelectorAll("#shead .fld").forEach(inp => {
+    if (inp.dataset.bw === undefined) inp.dataset.bw = parseFloat(inp.style.width) || 150;
+    inp.style.width = (+inp.dataset.bw * z) + "px";
+  });
+  $("#shead .ttl").style.fontSize = P(16) + "px";
+  touch();
+}
+
+/* --- ヘッダ（月 / 番号 / 日 / 曜） --- */
+function renderHead() {
+  const H = $("#head"); H.innerHTML = "";
+  const cw = CW();
+  const mkRow = (h, nameTxt) => {
+    const r = el("div", "r hr");
+    const n = el("div", "rname", { width:NW()+"px", height:P(h)+"px", minWidth:NW()+"px",
+                                   fontSize:P(BASE.NAMEFS)+"px", cursor:"default" });
+    n.textContent = nameTxt || "";
+    const t = el("div", "track", { width:trackW()+"px", height:P(h)+"px" });
+    r.appendChild(n); r.appendChild(t); H.appendChild(r);
+    return t;
+  };
+
+  // 月行（同じ月をまとめる）※着工日がないときは出さない
+  if (S.startDate) {
+    const tM = mkRow(BASE.HM, "");
+    let i = 1;
+    while (i <= S.days) {
+      const d = dateOfDay(i); let j = i;
+      while (j + 1 <= S.days) { const d2 = dateOfDay(j+1); if (d2.getMonth() === d.getMonth()) j++; else break; }
+      const b = el("div", "mblk", { left:((i-1)*cw)+"px", width:((j-i+1)*cw)+"px", fontSize:P(BASE.HFS)+"px" });
+      b.textContent = (d.getMonth()+1) + "月";
+      tM.appendChild(b); i = j + 1;
+    }
+  }
+
+  // 番号行
+  const tN = mkRow(BASE.HN, "工事内容　　日程");
+  for (let i = 1; i <= S.days; i++) {
+    const c = el("div", "hcell num", { left:((i-1)*cw)+"px", width:cw+"px", fontSize:P(BASE.HFS)+"px" });
+    c.textContent = i;
+    if (sel && sel.kind === "col" && sel.i === i) c.classList.add("sel");
+    c.addEventListener("pointerdown", ev => { ev.stopPropagation(); selectCol(i); });
+    tN.appendChild(c);
+  }
+
+  // 日行 / 曜行（着工日がないときは空の細い行を1本だけ）
+  const tD = mkRow(BASE.HD, "");
+  const tW = S.startDate ? mkRow(BASE.HW, "") : null;
+  if (S.startDate) {
+    for (let i = 1; i <= S.days; i++) {
+      const d = dateOfDay(i);
+      const cd  = el("div", "hcell", { left:((i-1)*cw)+"px", width:cw+"px", fontSize:P(BASE.HFS-0.5)+"px" });
+      const cwk = el("div", "hcell", { left:((i-1)*cw)+"px", width:cw+"px", fontSize:P(BASE.HFS-0.5)+"px" });
+      cd.textContent = d.getDate();
+      cwk.textContent = "日月火水木金土"[d.getDay()];
+      const cls = (S.useHolidays && isHoliday(d)) || d.getDay()===0 ? "sun" : (d.getDay()===6 ? "sat" : "");
+      if (cls) { cd.classList.add(cls); cwk.classList.add(cls); }
+      if (isHoliday(d)) cwk.title = holidayName(d);
+      tD.appendChild(cd); tW.appendChild(cwk);
+    }
+  } else {
+    for (let i = 1; i <= S.days; i++)
+      tD.appendChild(el("div", "hcell", { left:((i-1)*cw)+"px", width:cw+"px" }));
+  }
+}
+
+/* --- 本体行 + バー --- */
+function renderRows(geo) {
+  const R = $("#rows"); R.innerHTML = "";
+  S.rows.forEach((row, ri) => {
+    const H = geo.rowH[ri];
+    const r = el("div", "r"); r.dataset.ri = ri;
+    const n = el("div", "rname", { width:NW()+"px", minWidth:NW()+"px", height:P(H)+"px",
+                                   fontSize:P(BASE.NAMEFS)+"px", background: row.bg || "#fff",
+                                   position:"sticky" });
+    if (sel && sel.kind === "row" && sel.ri === ri) n.classList.add("sel");
+    if (row.type !== "spacer") n.appendChild(rowNameCtl(row, ri));
+    const grip = el("div", "rgrip");
+    grip.title = "行の設定（高さ・背景・追加・削除）";
+    grip.addEventListener("pointerdown", ev => { ev.stopPropagation(); selectRow(ri); });
+    n.appendChild(grip);
+
+    const t = el("div", "track", { width:trackW()+"px", height:P(H)+"px" });
+    t.dataset.ri = ri;
+    t.addEventListener("pointerdown", onTrackDown);
+    S.bars.filter(b => b.row === row.id && b.start <= S.days)
+          .forEach(b => t.appendChild(barEl(b, H, geo.maps[ri][b.id] || 0, geo.lanesArr[ri], geo.laneHs[ri])));
+    r.appendChild(n); r.appendChild(t); R.appendChild(r);
+  });
+}
+
+/* 選択肢は一度だけ組み立てて複製する（毎回作り直すと描画が重くなる） */
+let SELTPL = null;
+function tradeSelectEl() {
+  if (!SELTPL) {
+    SELTPL = document.createElement("select");
+    SELTPL.className = "rsel";
+    const opt = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; SELTPL.appendChild(o); };
+    opt("", ""); TRADES.forEach(t => opt(t, t)); opt("__free__", "（自由入力）");
+  }
+  return SELTPL.cloneNode(true);
+}
+
+/* 工種名セル：プルダウン（＋自由入力） */
+function rowNameCtl(row, ri) {
+  if (row.editing) {
+    const i = el("input", "rfree"); i.type = "text"; i.value = row.name;
+    const done = () => { row.name = i.value.trim(); row.editing = false; render(); };
+    i.addEventListener("blur", done);
+    i.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); done(); } });
+    setTimeout(() => { i.focus(); i.select(); }, 0);
+    return i;
+  }
+  const s = tradeSelectEl();
+  if (row.name && TRADES.indexOf(row.name) < 0) {   // 自由入力された名前を選択肢に足す
+    const o = document.createElement("option"); o.value = row.name; o.textContent = row.name;
+    s.insertBefore(o, s.lastChild);
+  }
+  s.value = row.name || "";
+  s.addEventListener("pointerdown", ev => ev.stopPropagation());
+  s.addEventListener("change", () => {
+    if (s.value === "__free__") { row.editing = true; render(); return; }
+    row.name = s.value;
+    // B工事の行は参考書式に合わせて水色。手で塗った色は上書きしない
+    if (row.name === "B工事" && !row.bg) { row.bg = "#e8f2fb"; row.autoBg = true; }
+    else if (row.autoBg && row.name !== "B工事") { row.bg = ""; delete row.autoBg; }
+    histPush(); render();
+  });
+  return s;
+}
+
+function barEl(b, rowHpx, lane, lanes, laneH) {
+  const cw = CW();
+  const L = (b.start - 1) * cw + cw/2;
+  const W = (Math.min(b.end, S.days) - b.start) * cw;
+  const PAD = P(8);
+  const LH = P(laneH || BASE.LANEH);
+  const cy = (P(rowHpx) - lanes*LH)/2 + lane*LH + LH*0.40;
+  const e = el("div", "bar", { left:(L - PAD)+"px", width:(W + PAD*2)+"px",
+                               top:(cy - P(7))+"px", height:P(14)+"px" });
+  e.dataset.id = b.id;
+  if (isSelBar(b.id)) e.classList.add("sel");
+  const col = b.color || COLORS.black;
+
+  const inr = el("div", "in", { left:PAD+"px", width:W+"px" });
+  if (W > 0) {
+    const ln = el("div", "ln", { borderTopColor:col, borderTopStyle: b.dash ? "dashed" : "solid",
+                                 borderTopWidth: Math.max(1.5, P(2.4))+"px" });
+    inr.appendChild(ln);
+  }
+  const ds = P(7);
+  const mkDot = pos => { const d = el("div", "dot", { width:ds+"px", height:ds+"px", background:col,
+                          marginTop:(-ds/2)+"px" }); d.style[pos] = (-ds/2)+"px"; return d; };
+  if (b.dots !== false) { inr.appendChild(mkDot("left")); if (W > 0) inr.appendChild(mkDot("right")); }
+  else if (W === 0) inr.appendChild(mkDot("left"));   // 1日作業は点が無いと見えないので必ず出す
+
+  if (b.label) {
+    const lab = el("div", "lab", { fontSize:P(b.fs || BASE.FS)+"px", color: b.labColor || col });
+    lab.textContent = b.label;
+    const al = b.align || "center";
+    if (al === "center") { lab.style.left = "50%"; lab.style.transform = "translateX(-50%)"; lab.style.textAlign = "center"; }
+    else if (al === "left") { lab.style.left = "0px"; lab.style.textAlign = "left"; }
+    else { lab.style.right = "0px"; lab.style.textAlign = "right"; }
+    const G = P(7 + BASE.LABGAP) + "px";
+    if (b.pos === "above") lab.style.bottom = G; else lab.style.top = G;
+    inr.appendChild(lab);
+  }
+  e.appendChild(inr);
+  e.appendChild(el("div", "hL")); e.appendChild(el("div", "hR"));
+  e.addEventListener("pointerdown", onBarDown);
+  return e;
+}
+
+/* --- 列の塗り + 縦書き --- */
+function renderFills(geo) {
+  const F = $("#fills"); F.innerHTML = "";
+  F.style.left = NW() + "px"; F.style.width = trackW() + "px";
+  const cw = CW(), hh = headH();
+  // 列の色は「月」の欄には伸ばさない（番号行の上端から）
+  const fillTop = S.startDate ? P(BASE.HM) + 1 : 0;
+
+  // 1) 行の背景（列の色より下に敷く）
+  let y = hh;
+  S.rows.forEach((row, ri) => {
+    const h = P(geo.rowH[ri]);
+    if (row.bg) F.appendChild(el("div", "rowbg", { top:y+"px", height:h+"px", background:row.bg }));
+    y += h;
+  });
+  const bodyBottom = y;
+
+  // 2) 列の色 → 3) 縦罫線 → 4) 縦書き文字
+  for (let i = 1; i <= S.days; i++) {
+    const ci = colInfo(i);
+    if (ci.fill && FILLS[ci.fill]) {
+      F.appendChild(el("div", "fill", { left:((i-1)*cw)+"px", width:cw+"px",
+                                        top:fillTop+"px", height:(bodyBottom-fillTop)+"px",
+                                        background:FILLS[ci.fill] }));
+    }
+  }
+  for (let i = 1; i < S.days; i++) {
+    F.appendChild(el("div", "vline", { left:(i*cw)+"px", top:hh+"px", height:(bodyBottom-hh)+"px" }));
+  }
+  for (let i = 1; i <= S.days; i++) {
+    const ci = colInfo(i);
+    if (ci.vtext) {
+      const v = el("div", "vtext", { left:((i-1)*cw)+"px", width:cw+"px", top:hh+"px", bottom:"0px",
+                                     fontSize:P(11)+"px", color:ci.vcolor });
+      Array.from(ci.vtext).forEach(ch => {
+        const s = el("span");
+        s.textContent = ch === " " || ch === "　" ? " " : ch;
+        v.appendChild(s);
+      });
+      F.appendChild(v);
+    }
+  }
+}
+
+/* --- 自由注記 --- */
+/* 注記の位置（z=1基準・日程エリア左上から）。行と日に紐づけていればそこから計算する */
+function notePos(n, geo) {
+  if (n.row) {
+    const ri = S.rows.findIndex(r => r.id === n.row);
+    if (ri >= 0) return { x: (Math.min(n.day, S.days) - 1) * BASE.COLW + (n.ox || 0), y: rowTops(geo)[ri] + (n.oy || 0) };
+  }
+  return { x: n.x, y: n.y };
+}
+/* いま置かれている位置から、行と日を割り出して覚え直す */
+function reanchor(n, geo) {
+  if (!n.row) return;
+  const tops = rowTops(geo);
+  let ri = 0;
+  for (let i = 0; i < tops.length; i++) if (n.y >= tops[i]) ri = i;
+  n.row = S.rows[ri].id;
+  n.oy  = n.y - tops[ri];
+  n.day = Math.min(S.days, Math.max(1, Math.floor(n.x / BASE.COLW) + 1));
+  n.ox  = n.x - (n.day - 1) * BASE.COLW;
+}
+
+function renderNotes(geo) {
+  const N = $("#notes"); N.innerHTML = "";
+  N.style.left = NW() + "px"; N.style.top = headH() + "px";
+  geo = geo || computeGeo();
+  S.notes.forEach(n => {
+    const pos = notePos(n, geo);
+    n.x = pos.x; n.y = pos.y;
+    const e = el("div", "note" + (n.vert ? " vert" : ""), { left:P(pos.x)+"px", top:P(pos.y)+"px",
+      fontSize:P(n.fs || BASE.FS)+"px", color:n.color || "#000", background: n.bg || "transparent" });
+    if (n.vert) Array.from(String(n.text).replace(/\n/g, "")).forEach(ch => {
+      const sp = el("span"); sp.textContent = ch; e.appendChild(sp);
+    });
+    else e.textContent = n.text;
+    e.dataset.id = n.id;
+    if (sel && sel.kind === "note" && sel.id === n.id) e.classList.add("sel");
+    e.addEventListener("pointerdown", onNoteDown);
+    e.addEventListener("dblclick", () => { selectNote(n.id); $("#inspNoteText") && $("#inspNoteText").focus(); });
+    N.appendChild(e);
+  });
+}
+
+/* =========================================================
+   マウス操作
+   ========================================================= */
+/* 注意：ドラッグ中は render() で DOM が作り直されるため、
+   要素参照ではなく「押した瞬間の矩形」を保持して座標計算する。 */
+function dayFromRect(rect, clientX) {
+  const per = rect.width / S.days;
+  if (!per) return 1;
+  let d = Math.floor((clientX - rect.left) / per) + 1;
+  return Math.min(S.days, Math.max(1, d));
+}
+function rowIndexAtY(clientY) {
+  const rows = document.querySelectorAll("#rows .r");
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i].getBoundingClientRect();
+    if (clientY >= r.top && clientY < r.bottom) return i;
+  }
+  return -1;
+}
+const rowTrack = ri => document.querySelector('#rows .r[data-ri="' + ri + '"] .track');
+
+let drag = null;
+let LASTTAP = { t:0, x:0, y:0, ri:-1 };   // ダブルタップ判定用
+
+function onTrackDown(ev) {
+  if (ev.button > 0) return;
+  const ri = +ev.currentTarget.dataset.ri;
+  if (S.rows[ri].type === "spacer") { selectRow(ri); return; }
+  const d0 = dayFromRect(ev.currentTarget.getBoundingClientRect(), ev.clientX);
+
+  // 素早く2回叩いたら、その日に1日だけのバーを置く
+  const now = Date.now();
+  const dbl = (now - LASTTAP.t < 420) && LASTTAP.ri === ri &&
+              Math.abs(ev.clientX - LASTTAP.x) < 26 && Math.abs(ev.clientY - LASTTAP.y) < 26;
+  LASTTAP = { t: now, x: ev.clientX, y: ev.clientY, ri };
+  if (dbl) {
+    LASTTAP.t = 0;
+    ev.preventDefault();
+    addBarToRow(S.rows[ri].id, d0, d0);
+    return;
+  }
+
+  if (sel) { sel = null; render(); refreshInsp(); }   // 先に再描画してから掴む
+  const track = rowTrack(ri);
+  if (!track) return;
+  const ghost = el("div", "ghost", { top:"2px", bottom:"2px" });
+  track.appendChild(ghost);
+  drag = { mode:"create", ri, rect: track.getBoundingClientRect(), d0, d1:d0, ghost,
+           px0: ev.clientX, py0: ev.clientY, maxMove: 0 };
+  paintGhost();
+  ev.preventDefault();
+}
+
+function onBarDown(ev) {
+  if (ev.button > 0) return;
+  ev.stopPropagation();
+  const e = ev.currentTarget;
+  const b = S.bars.find(x => x.id === e.dataset.id);
+  if (!b) return;
+  const rect = e.parentElement.getBoundingClientRect();
+  const r = e.getBoundingClientRect();
+  if (ev.shiftKey) { selectBar(b.id, true); ev.preventDefault(); return; }
+  if (!isSelBar(b.id)) selectBar(b.id);
+  else { sel = { kind:"bar", id:b.id }; render(); refreshInsp(); }
+
+  const near = (ev.pointerType === "touch") ? 16 : 9;
+  let mode = "move";
+  if (ev.clientX - r.left <= near && b.end > b.start) mode = "resL";
+  else if (r.right - ev.clientX <= near && b.end > b.start) mode = "resR";
+  const group = (mode === "move" ? selBars() : [b]).map(x => ({ b:x, s0:x.start, e0:x.end, row0:x.row }));
+  drag = { mode, bar:b, rect, x0:ev.clientX, anchor: dayFromRect(rect, ev.clientX),
+           s0:b.start, e0:b.end, group, moved:false,
+           ri0: S.rows.findIndex(r => r.id === b.row), riLast: -1 };
+  ev.preventDefault();
+}
+
+function onNoteDown(ev) {
+  if (ev.button > 0) return;
+  ev.stopPropagation();
+  const e = ev.currentTarget;
+  const n = S.notes.find(x => x.id === e.dataset.id);
+  if (!n) return;
+  drag = { mode:"note", note:n, x0:ev.clientX, y0:ev.clientY, nx:n.x, ny:n.y, moved:false };
+  selectNote(n.id);
+  ev.preventDefault();
+}
+
+function paintGhost() {
+  const cw = CW();
+  const a = Math.min(drag.d0, drag.d1), b = Math.max(drag.d0, drag.d1);
+  Object.assign(drag.ghost.style, { left:((a-1)*cw)+"px", width:((b-a+1)*cw)+"px" });
+}
+
+document.addEventListener("pointermove", ev => {
+  if (!drag) return;
+  if (drag.mode === "create") {
+    drag.maxMove = Math.max(drag.maxMove, Math.abs(ev.clientX - drag.px0), Math.abs(ev.clientY - drag.py0));
+    drag.d1 = dayFromRect(drag.rect, ev.clientX); paintGhost(); return;
+  }
+  if (drag.mode === "note") {
+    const dx = (ev.clientX - drag.x0) / z, dy = (ev.clientY - drag.y0) / z;
+    if (Math.abs(dx) + Math.abs(dy) > 1) drag.moved = true;
+    drag.note.x = Math.max(0, drag.nx + dx);
+    drag.note.y = Math.max(0, drag.ny + dy);
+    renderNotes(); return;
+  }
+  const d = dayFromRect(drag.rect, ev.clientX);
+  const b = drag.bar;
+  if (drag.mode === "move") {
+    // 移動は「掴んだ点からのピクセル差」を丸める（列境界での取りこぼしを防ぐ）
+    let off = Math.round((ev.clientX - drag.x0) / (drag.rect.width / S.days));
+    if (off !== 0) drag.moved = true;
+    let lo = Infinity, hi = -Infinity;
+    drag.group.forEach(g => { lo = Math.min(lo, g.s0); hi = Math.max(hi, g.e0); });
+    off = Math.max(1 - lo, Math.min(S.days - hi, off));       // 全部が枠内に収まる範囲へ
+    drag.group.forEach(g => { g.b.start = g.s0 + off; g.b.end = g.e0 + off; });
+
+    // 上下に動かしたら行も移す
+    const ri = rowIndexAtY(ev.clientY);
+    if (ri >= 0 && ri !== drag.riLast) {
+      drag.riLast = ri;
+      const dRow = ri - drag.ri0;
+      if (dRow !== 0 || drag.movedRow) {
+        drag.movedRow = true; drag.moved = true;
+        drag.group.forEach(g => {
+          const from = S.rows.findIndex(r => r.id === g.row0);
+          if (from < 0) return;
+          let to = Math.max(0, Math.min(S.rows.length - 1, from + dRow));
+          if (S.rows[to].type === "spacer") {                 // 空行は飛ばす
+            let k = to;
+            while (k < S.rows.length && S.rows[k].type === "spacer") k++;
+            if (k >= S.rows.length) { k = to; while (k >= 0 && S.rows[k].type === "spacer") k--; }
+            if (k >= 0 && k < S.rows.length) to = k;
+          }
+          if (S.rows[to] && S.rows[to].type !== "spacer") g.b.row = S.rows[to].id;
+        });
+      }
+    }
+  } else if (drag.mode === "resL") {
+    b.start = Math.min(b.end, Math.max(1, d)); drag.moved = true;
+  } else if (drag.mode === "resR") {
+    b.end = Math.max(b.start, Math.min(S.days, d)); drag.moved = true;
+  }
+  renderSoon();          // 1フレームに1回だけ描き直す（ドラッグのカクつき対策）
+});
+
+document.addEventListener("pointercancel", () => { if (drag && drag.ghost && drag.ghost.parentNode) drag.ghost.remove(); drag = null; render(); });
+document.addEventListener("pointerup", () => {
+  if (!drag) return;
+  if (drag.mode === "create") {
+    if (drag.ghost.parentNode) drag.ghost.remove();
+    const a = Math.min(drag.d0, drag.d1), b = Math.max(drag.d0, drag.d1);
+    if (drag.maxMove < 8) { drag = null; return; }   // 軽く触れただけではバーを作らない（1日バーはダブルタップ）
+    const nb = { id:nid(), row:S.rows[drag.ri].id, start:a, end:b, label:"", pos:"below",
+                 align:"center", color:COLORS.black, dash:false, fs:BASE.FS };
+    S.bars.push(nb);
+    drag = null; render(); selectBar(nb.id);
+    clearTimeout(HIST.t); histPush();                   // バー作成も1操作＝1履歴
+    const ta = $("#inspLabel"); if (ta) { ta.focus(); }
+    return;
+  }
+  if (drag.mode === "note" && drag.note.row) reanchor(drag.note, computeGeo());
+  const moved = drag.moved;
+  drag = null;
+  render(); refreshInsp();
+  if (moved) { clearTimeout(HIST.t); histPush(); }     // 移動・伸縮は1操作＝1履歴
+});
+
+document.addEventListener("keydown", ev => {
+  const tag = (ev.target.tagName || "").toLowerCase();
+  const inText = (tag === "input" || tag === "textarea" || tag === "select");
+  const mod = ev.ctrlKey || ev.metaKey;
+
+  /* 文字入力中でも効かせるもの */
+  if (mod && (ev.key === "s" || ev.key === "S")) { ev.preventDefault(); doSave(); return; }
+  if (mod && (ev.key === "p" || ev.key === "P")) { ev.preventDefault(); doPrint(); return; }
+
+  /* 文字入力中はブラウザ標準の編集操作にゆずる */
+  if (inText) return;
+
+  if (mod && (ev.key === "z" || ev.key === "Z")) { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
+  if (mod && (ev.key === "y" || ev.key === "Y")) { ev.preventDefault(); redo(); return; }
+  if (mod && (ev.key === "c" || ev.key === "C")) { ev.preventDefault(); copySel(); return; }
+  if (mod && (ev.key === "x" || ev.key === "X")) { ev.preventDefault(); if (copySel()) deleteSel(); return; }
+  if (mod && (ev.key === "v" || ev.key === "V")) { ev.preventDefault(); pasteClip(); return; }
+  if (mod && (ev.key === "d" || ev.key === "D")) { ev.preventDefault(); dupSel(); return; }
+  if (ev.key === "F4") { ev.preventDefault(); repeatFmt(); return; }
+  if (ev.key === "Escape") { select(null); return; }
+
+  if (!sel) return;
+
+  if (ev.key === "Delete" || ev.key === "Backspace") { ev.preventDefault(); deleteSel(); return; }
+
+  if (sel.kind === "bar") {
+    const b = S.bars.find(x => x.id === sel.id); if (!b) return;
+    const len = b.end - b.start;
+    if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
+      let d = ev.key === "ArrowLeft" ? -1 : 1;
+      if (ev.shiftKey) {                       // Shift＋←→ ＝ 右端を伸縮
+        selBars().forEach(x => { x.end = Math.max(x.start, Math.min(S.days, x.end + d)); });
+      } else {                                 // ←→ ＝ 1日ずらす（選択中すべて）
+        const bs = selBars();
+        let lo = Infinity, hi = -Infinity;
+        bs.forEach(x => { lo = Math.min(lo, x.start); hi = Math.max(hi, x.end); });
+        d = Math.max(1 - lo, Math.min(S.days - hi, d));
+        bs.forEach(x => { x.start += d; x.end += d; });
+      }
+      render(); refreshInsp(); ev.preventDefault(); return;
+    }
+    if (ev.key === "ArrowUp" || ev.key === "ArrowDown") {   // 段を上下
+      const ri = S.rows.findIndex(r => r.id === b.row);
+      const cur = (computeGeo().maps[ri] || {})[b.id] || 0;
+      b.lane = Math.max(0, cur + (ev.key === "ArrowUp" ? -1 : 1));
+      render(); refreshInsp(); ev.preventDefault(); return;
+    }
+  }
+});
+
+
+/* 指定した行に、空いている段へバーを1本足す */
+function addBarToRow(rowId, from, to) {
+  const row = S.rows.find(r => r.id === rowId);
+  if (!row || row.type === "spacer") return;
+  let a = from, b = to;
+  if (!a) {                       // 指定がなければ今見えている範囲の左寄りに置く
+    const st = $("#stage");
+    const d = Math.floor((st.scrollLeft - NW()) / CW()) + 2;
+    a = Math.min(S.days - 2, Math.max(1, d));
+    b = Math.min(S.days, a + 2);
+  }
+  const nb = { id:nid(), row:rowId, start:a, end:b, label:"", pos:"below",
+               align:"center", color:COLORS.black, dash:false, fs:BASE.FS };
+  S.bars.push(nb);
+  histPush(); selectBar(nb.id);
+  const ta = $("#inspLabel"); if (ta) ta.focus();
+}
+
+/* =========================================================
+   選択とインスペクタ
+   ========================================================= */
+function select(v) { if (!v || v.kind !== "bar") MULTI = []; sel = v; render(); refreshInsp(); }
+function selectBar(id, add) {
+  if (add) {                                   // Shift＋クリック＝選択に足す／外す
+    const i = MULTI.indexOf(id);
+    if (i >= 0) {
+      MULTI.splice(i, 1);
+      if (!MULTI.length) { select(null); return; }
+      sel = { kind:"bar", id: MULTI[MULTI.length - 1] };
+    } else { MULTI.push(id); sel = { kind:"bar", id }; }
+    render(); refreshInsp(); return;
+  }
+  MULTI = [id]; select({ kind:"bar", id });
+}
+const selectRow  = ri => select({ kind:"row",  ri });
+const selectCol  = i  => select({ kind:"col",  i });
+const selectNote = id => select({ kind:"note", id });
+
+function refreshInsp() {
+  const box = $("#insp"), body = $("#inspBody");
+  body.innerHTML = "";
+  box.querySelectorAll(".close").forEach(e => e.remove());
+  if (!sel) { box.classList.remove("on"); return; }
+  box.classList.add("on");
+
+  const h = t => { const e = el("h4"); e.textContent = t; body.appendChild(e); return e; };
+  const btn = (t, fn, on, cls) => { const e = el("button", "btn" + (on ? " on" : "") + (cls ? " " + cls : ""));
+    e.textContent = t; e.onclick = fn; body.appendChild(e); return e; };
+  const gap = () => body.appendChild(el("span", "", { width:"10px" }));
+  const lab = t => { const e = el("span"); e.textContent = t; e.style.color = "#555"; body.appendChild(e); };
+
+  if (sel.kind === "bar") {
+    const b = S.bars.find(x => x.id === sel.id);
+    if (!b) { select(null); return; }
+    const many = MULTI.length > 1;
+    h(many ? ("工程バー " + MULTI.length + "本を選択中") : "工程バー");
+    if (!many) {
+      const ta = el("textarea"); ta.id = "inspLabel"; ta.value = b.label;
+      ta.placeholder = "ラベル（改行で複数行）\n例：天井LGS組→PB、ケイカル貼";
+      ta.oninput = () => { b.label = ta.value; renderSoon(); };
+      body.appendChild(ta);
+    }
+    // 書式変更は LASTFMT に記録 → F4 で他のバーに繰り返せる
+    const setF = (k, v) => { selBars().forEach(x => { x[k] = v; }); LASTFMT = { k, v }; histPush(); render(); refreshInsp(); };
+    lab("位置"); btn("上", () => setF("pos","above"), b.pos==="above");
+    btn("下", () => setF("pos","below"), b.pos!=="above");
+    lab("揃え");
+    ["left","center","right"].forEach(a =>
+      btn({left:"左",center:"中",right:"右"}[a], () => setF("align",a), (b.align||"center")===a));
+    gap(); lab("線");
+    btn("実線", () => setF("dash",false), !b.dash);
+    btn("点線", () => setF("dash",true),  !!b.dash);
+    gap(); lab("端点");
+    btn("あり", () => setF("dots",true),  b.dots !== false);
+    btn("なし", () => setF("dots",false), b.dots === false);
+    gap(); lab("色");
+    Object.keys(COLORS).forEach(k => {
+      const sw = el("div", "sw" + (b.color===COLORS[k] ? " on" : ""), { background:COLORS[k] });
+      sw.onclick = () => setF("color", COLORS[k]);
+      body.appendChild(sw);
+    });
+    if (!many) {
+    gap(); lab("段");
+    const curLane = (computeGeo().maps[S.rows.findIndex(r => r.id === b.row)] || {})[b.id] || 0;
+    btn("自動", () => { delete b.lane; render(); refreshInsp(); }, !Number.isInteger(b.lane));
+    btn("↑", () => { b.lane = Math.max(0, curLane - 1); render(); refreshInsp(); });
+    btn("↓", () => { b.lane = curLane + 1; render(); refreshInsp(); });
+    lab((curLane + 1) + "段目");
+    gap(); lab("開始");
+    const i1 = el("input"); i1.type="number"; i1.min=1; i1.max=S.days; i1.value=b.start; i1.style.width="60px";
+    i1.onchange = () => { b.start = Math.min(b.end, Math.max(1, +i1.value)); render(); refreshInsp(); };
+    body.appendChild(i1);
+    lab("終了");
+    const i2 = el("input"); i2.type="number"; i2.min=1; i2.max=S.days; i2.value=b.end; i2.style.width="60px";
+    i2.onchange = () => { b.end = Math.max(b.start, Math.min(S.days, +i2.value)); render(); refreshInsp(); };
+    body.appendChild(i2);
+    }
+    lab("文字"); const fs = el("input"); fs.type="number"; fs.min=6; fs.max=16; fs.step=0.5;
+    fs.value = b.fs || BASE.FS; fs.style.width="56px";
+    fs.onchange = () => { selBars().forEach(x => { x.fs = +fs.value; }); LASTFMT = { k:"fs", v:+fs.value }; histPush(); render(); }; body.appendChild(fs);
+    gap();
+    if (!many) {
+      lab("行"); const rs = el("select"); rs.style.cssText = "padding:4px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px;max-width:150px";
+      S.rows.forEach((r, i) => { if (r.type === "spacer") return;
+        const o = document.createElement("option"); o.value = r.id; o.textContent = (i + 1) + "：" + (r.name || "（名称なし）"); rs.appendChild(o); });
+      rs.value = b.row;
+      rs.onchange = () => { selBars().forEach(x => { x.row = rs.value; delete x.lane; }); histPush(); render(); refreshInsp(); };
+      body.appendChild(rs);
+    }
+    btn("この行にもう1本", () => addBarToRow(b.row, b.start, b.end));
+    btn("複製 (Ctrl+D)", () => dupSel());
+    btn("削除 (Del)", () => deleteSel(), false, "del");
+  }
+
+  if (sel.kind === "row") {
+    const ri = sel.ri, row = S.rows[ri];
+    h(row.type === "spacer" ? "空行" : "工種行");
+    if (row.type !== "spacer") {
+      lab("工種名"); const i = el("input"); i.type="text"; i.value=row.name; i.style.width="180px";
+      i.placeholder = "自由入力";
+      i.oninput = () => { row.name = i.value; };
+      i.onchange = () => render();
+      body.appendChild(i);
+    }
+    lab("最低高さ"); const ih = el("input"); ih.type="number"; ih.min=16; ih.max=140; ih.value=row.h; ih.style.width="62px";
+    ih.onchange = () => { row.h = +ih.value; render(); }; body.appendChild(ih);
+    gap(); lab("背景");
+    [["","なし"],["#e8f2fb","水色"],["#f3f3f3","灰"],["#fff7d6","薄黄"]].forEach(([c,t]) => {
+      btn(t, () => { row.bg = c; delete row.autoBg; histPush(); render(); refreshInsp(); }, row.bg === c);
+    });
+    gap();
+    if (row.type !== "spacer") btn("この行にバーを追加", () => addBarToRow(row.id));
+    btn("↑", () => { if (ri>0) { const a=S.rows.splice(ri,1)[0]; S.rows.splice(ri-1,0,a); select({kind:"row",ri:ri-1}); } });
+    btn("↓", () => { if (ri<S.rows.length-1) { const a=S.rows.splice(ri,1)[0]; S.rows.splice(ri+1,0,a); select({kind:"row",ri:ri+1}); } });
+    btn("下に行を追加", () => { S.rows.splice(ri+1,0,{id:nid(),type:"work",name:"新しい工種",bg:"",h:BASE.ROWH}); select({kind:"row",ri:ri+1}); });
+    btn("下に空行", () => { S.rows.splice(ri+1,0,{id:nid(),type:"spacer",name:"",bg:"",h:26}); select({kind:"row",ri:ri+1}); });
+    btn("行を削除", () => {
+      if (S.rows.length <= 1) { alert("最後の1行は削除できません。"); return; }
+      if (!confirm("この行と、行内のバーを削除します。よろしいですか？")) return;
+      S.bars = S.bars.filter(b => b.row !== row.id); S.rows.splice(ri,1); select(null);
+    }, false, "del");
+  }
+
+  if (sel.kind === "col") {
+    const i = sel.i, c = S.cols[i] || (S.cols[i] = {});
+    const d = dateOfDay(i);
+    h(i + "日目" + (d ? "（" + (d.getMonth()+1) + "/" + d.getDate() + " " + "日月火水木金土"[d.getDay()] + (holidayName(d) ? " " + holidayName(d) : "") + "）" : ""));
+    lab("列の色");
+    [["","自動"],["none","塗らない"],["gray","グレー"],["yellow","黄"],["pink","ピンク"],["blue","水色"],["green","緑"]].forEach(([k,t]) => {
+      btn(t, () => { c.fill = k; render(); refreshInsp(); }, (c.fill||"") === k);
+    });
+    gap(); lab("縦書き文字");
+    const iv = el("input"); iv.type="text"; iv.value = c.vtext || ""; iv.style.width="140px";
+    iv.placeholder = "引渡し / OPEN など";
+    iv.oninput = () => { c.vtext = iv.value; render(); };
+    body.appendChild(iv);
+    lab("色");
+    Object.keys(COLORS).forEach(k => {
+      const s = el("div", "sw" + ((c.vcolor||"#000000")===COLORS[k] ? " on" : ""), { background:COLORS[k] });
+      s.onclick = () => { c.vcolor = COLORS[k]; render(); refreshInsp(); };
+      body.appendChild(s);
+    });
+    gap();
+    btn("この列をクリア", () => { delete S.cols[i]; render(); refreshInsp(); });
+  }
+
+  if (sel.kind === "note") {
+    const n = S.notes.find(x => x.id === sel.id);
+    if (!n) { select(null); return; }
+    h("自由注記");
+    const ta = el("textarea"); ta.id="inspNoteText"; ta.value = n.text;
+    ta.oninput = () => { n.text = ta.value; renderNotes(); };
+    body.appendChild(ta);
+    lab("位置");
+    btn("自由", () => { delete n.row; delete n.day; delete n.ox; delete n.oy; histPush(); render(); refreshInsp(); }, !n.row);
+    btn("行と日に合わせる", () => {
+      if (!S.rows.length) { alert("行がありません。先に行を追加してください。"); return; }
+      const geo = computeGeo(); n.row = S.rows[0].id; reanchor(n, geo); histPush(); render(); refreshInsp();
+    }, !!n.row);
+    gap(); lab("向き");
+    btn("横書き", () => { n.vert = false; histPush(); render(); refreshInsp(); }, !n.vert);
+    btn("縦書き", () => { n.vert = true;  histPush(); render(); refreshInsp(); }, !!n.vert);
+    gap(); lab("文字背景");
+    [["","なし"],["#ffffff","白"],["#ffff00","黄"],["#cfe8ff","水色"],["#ffd6e7","ピンク"]].forEach(([c,t]) => {
+      btn(t, () => { n.bg = c; histPush(); render(); refreshInsp(); }, (n.bg||"") === c);
+    });
+    gap(); lab("文字"); const fs = el("input"); fs.type="number"; fs.min=6; fs.max=20; fs.step=0.5; fs.value=n.fs||BASE.FS; fs.style.width="56px";
+    fs.onchange = () => { n.fs = +fs.value; render(); }; body.appendChild(fs);
+    lab("色");
+    Object.keys(COLORS).forEach(k => {
+      const s = el("div", "sw" + ((n.color||"#000000")===COLORS[k] ? " on" : ""), { background:COLORS[k] });
+      s.onclick = () => { n.color = COLORS[k]; render(); refreshInsp(); };
+      body.appendChild(s);
+    });
+    gap();
+    btn("削除", () => { S.notes = S.notes.filter(x => x.id !== n.id); select(null); }, false, "del");
+  }
+
+  const cl = el("button", "btn close"); cl.textContent = "閉じる"; cl.onclick = () => select(null);
+  $("#insp").appendChild(cl);
+}
+
+function editRowName(ri) { selectRow(ri); const i = $("#inspBody input[type=text]"); if (i) { i.focus(); i.select(); } }
+
+
+
+
+/* =========================================================
+   自動下書き保存（この端末のブラウザ内）と、閉じる前の警告
+   ========================================================= */
+const DRAFT_KEY = "koutei_draft_v1";
+let DIRTY = false, SAVED_SNAP = null;
+
+function storeOK() { try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); return true; } catch (e) { return false; } }
+const HAS_STORE = storeOK();
+
+function saveDraft() {
+  if (!HAS_STORE || !DIRTY) return;
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ t: Date.now(), name: S.meta.project || "", s: cleanState() }));
+  } catch (e) { /* 容量オーバー等は黙って諦める */ }
+}
+function clearDraft() { if (HAS_STORE) { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} } }
+function readDraft() {
+  if (!HAS_STORE) return null;
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch (e) { return null; }
+}
+function markSaved() { DIRTY = false; SAVED_SNAP = JSON.stringify(S); clearDraft(); }
+function markDirty() { DIRTY = (JSON.stringify(S) !== SAVED_SNAP); }
+
+setInterval(saveDraft, 30000);
+document.addEventListener("visibilitychange", () => { if (document.hidden) saveDraft(); });
+window.addEventListener("pagehide", saveDraft);
+window.addEventListener("beforeunload", ev => {
+  saveDraft();
+  if (!DIRTY) return;
+  ev.preventDefault(); ev.returnValue = "";   // ブラウザ標準の確認ダイアログ
+  return "";
+});
+
+function offerRestore() {
+  const d = readDraft(); if (!d || !d.s) return;
+  const dt = new Date(d.t);
+  const two = n => ("0" + n).slice(-2);
+  $("#restoreMsg").textContent =
+    "前回の作業（" + (dt.getMonth() + 1) + "/" + dt.getDate() + " " + two(dt.getHours()) + ":" + two(dt.getMinutes()) + "）が残っています。"
+    + (d.name ? "【" + d.name + "】" : "");
+  $("#restoreBar").classList.add("on");
+  $("#btnRestore").onclick = () => {
+    S = Object.assign(blankState(), d.s);
+    uid = 1; S.rows.concat(S.bars, S.notes).forEach(o => { const m = /^x(\d+)$/.exec(o.id || ""); if (m) uid = Math.max(uid, +m[1] + 1); });
+    $("#restoreBar").classList.remove("on");
+    HIST.stack = []; HIST.idx = -1;
+    select(null); syncFields(); render(); histPush(); DIRTY = true;
+  };
+  $("#btnDiscard").onclick = () => { clearDraft(); $("#restoreBar").classList.remove("on"); };
+}
+
+
+/* =========================================================
+   iPhone / iPad：文字入力で画面が勝手に拡大されるのを防ぐ
+   ========================================================= */
+(function iosZoomGuard() {
+  if (!matchMedia("(pointer: coarse)").matches) return;
+
+  // 表の中の入力欄（工種名・ヘッダ）は小さい文字なので、
+  // 触れた瞬間だけ16pxに上げてから入力させる（iOSの自動拡大の条件を外す）
+  document.addEventListener("pointerdown", ev => {
+    const t = ev.target;
+    if (!t || !t.classList) return;
+    if (t.classList.contains("fld") || t.classList.contains("rsel") || t.classList.contains("rfree") || t.id === "fRemarks") {
+      if (t.dataset.fs0 === undefined) t.dataset.fs0 = t.style.fontSize || "";
+      t.style.fontSize = "16px";
+    }
+  }, true);
+
+  document.addEventListener("focusout", ev => {
+    const t = ev.target;
+    if (t && t.dataset && t.dataset.fs0 !== undefined) { t.style.fontSize = t.dataset.fs0; delete t.dataset.fs0; }
+    // 入力を終えたら、拡大されたままの表示を元に戻す
+    setTimeout(() => {
+      window.scrollTo(0, 0);
+      const vp = document.getElementById("vp");
+      if (!vp) return;
+      const keep = vp.getAttribute("content");
+      vp.setAttribute("content", "width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,viewport-fit=cover");
+      setTimeout(() => vp.setAttribute("content", keep), 60);
+      render();
+    }, 80);
+  }, true);
+
+  // キーボードの開閉で表示域が変わったら作り直す（メニューが画面外に残らないように）
+  if (window.visualViewport) {
+    let vt = null;
+    const onVV = () => { clearTimeout(vt); vt = setTimeout(() => { window.scrollTo(0, 0); render(); }, 150); };
+    visualViewport.addEventListener("resize", onVV);
+  }
+})();
+
+/* =========================================================
+   拡大縮小：ピンチ（2本指）／Ctrl+ホイール
+   ========================================================= */
+function setZoom(nz, cx, cy) {
+  const st = $("#stage");
+  const old = z;
+  nz = Math.max(0.35, Math.min(2.2, nz));
+  if (Math.abs(nz - old) < 0.001) return;
+  const r = st.getBoundingClientRect();
+  // 指の中心（またはカーソル）の下にある位置を動かさない
+  const px = (cx === undefined ? r.width / 2 : cx - r.left) + st.scrollLeft;
+  const py = (cy === undefined ? r.height / 2 : cy - r.top) + st.scrollTop;
+  z = nz;
+  $("#inZoom").value = Math.round(z * 100);
+  $("#zoomval").textContent = Math.round(z * 100) + "%";
+  render();
+  const k = z / old;
+  st.scrollLeft = px * k - ((cx === undefined ? r.width / 2 : cx - r.left));
+  st.scrollTop  = py * k - ((cy === undefined ? r.height / 2 : cy - r.top));
+}
+
+(function enablePinch() {
+  const st = $("#stage"), sheet = $("#sheet");
+  let pin = null, raf = null;
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  const midX = t => (t[0].clientX + t[1].clientX) / 2;
+  const midY = t => (t[0].clientY + t[1].clientY) / 2;
+
+  /* 2本指の間は再描画せず transform だけ動かす（＝なめらかに無段階で拡縮・移動）。
+     指を離した時点で本当の拡大率に作り直す。 */
+  function begin(ts) {
+    if (drag) { if (drag.ghost && drag.ghost.parentNode) drag.ghost.remove(); drag = null; }
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    const r = st.getBoundingClientRect();
+    pin = {
+      d0: dist(ts) || 1, z0: z,
+      sl: st.scrollLeft, stp: st.scrollTop,
+      ox: sheet.offsetLeft, oy: sheet.offsetTop,
+      r: r, vs: st.scrollLeft, vt: st.scrollTop, k: 1
+    };
+    // 指の中心の下にある「中身の座標」
+    pin.px = pin.sl + (midX(ts) - r.left) - pin.ox;
+    pin.py = pin.stp + (midY(ts) - r.top)  - pin.oy;
+    sheet.style.transformOrigin = "0 0";
+    sheet.style.willChange = "transform";
+  }
+
+  function move(ts) {
+    const k0 = dist(ts) / pin.d0;
+    const k = Math.max(0.35 / pin.z0, Math.min(2.2 / pin.z0, k0));   // 拡大率の上下限
+    const mx = midX(ts), my = midY(ts);
+    // 指を離したときに使う「本来のスクロール位置」
+    let vs = pin.ox + pin.px * k - (mx - pin.r.left);
+    let vt = pin.oy + pin.py * k - (my - pin.r.top);
+    const maxS = Math.max(0, sheet.offsetWidth  * k + pin.ox * 2 - st.clientWidth);
+    const maxT = Math.max(0, sheet.offsetHeight * k + pin.oy * 2 - st.clientHeight);
+    vs = Math.max(0, Math.min(maxS, vs));
+    vt = Math.max(0, Math.min(maxT, vt));
+    pin.k = k; pin.vs = vs; pin.vt = vt;
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = null;
+      if (!pin) return;
+      sheet.style.transform = "translate(" + (pin.sl - pin.vs) + "px," + (pin.stp - pin.vt) + "px) scale(" + pin.k + ")";
+    });
+  }
+
+  function end() {
+    if (!pin) return;
+    const p = pin; pin = null;
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    sheet.style.transform = ""; sheet.style.willChange = "";
+    z = Math.max(0.35, Math.min(2.2, p.z0 * p.k));
+    $("#inZoom").value = Math.round(z * 100);
+    $("#zoomval").textContent = Math.round(z * 100) + "%";
+    render();
+    st.scrollLeft = p.vs; st.scrollTop = p.vt;
+  }
+
+  st.addEventListener("touchstart", ev => { if (ev.touches.length === 2) begin(ev.touches); }, { passive:false });
+  st.addEventListener("touchmove",  ev => { if (pin && ev.touches.length === 2) { ev.preventDefault(); move(ev.touches); } }, { passive:false });
+  st.addEventListener("touchend",   ev => { if (pin && (!ev.touches || ev.touches.length < 2)) end(); });
+  st.addEventListener("touchcancel", () => end());
+
+  // トラックパッドのピンチ／Ctrl+ホイール
+  st.addEventListener("wheel", ev => {
+    if (!ev.ctrlKey && !ev.metaKey) return;
+    ev.preventDefault();
+    setZoom(z * (1 - ev.deltaY * 0.01), ev.clientX, ev.clientY);
+  }, { passive:false });
+
+  window.__pinch = { begin, move, end, get on(){ return !!pin; } };
+  window.__pinchK = () => pin ? pin.k : 0;   // 動作確認用
+})();
+
+/* =========================================================
+   画像（PNG）書き出し：画面と同じものを canvas に描き直す
+   ========================================================= */
+function buildCanvas(SC, D1, D2) {
+  SC = SC || 2;
+  const d1 = D1 || 1, d2 = D2 || S.days;
+  const cw = BASE.COLW, nw = BASE.NAMEW, days = d2 - d1 + 1;
+  const W = nw + days * cw;
+  const geo = computeGeo();
+  const hh = S.startDate ? (BASE.HM + BASE.HN + BASE.HD + BASE.HW) : (BASE.HN + BASE.HD);
+  const bodyH = geo.rowH.reduce((a, b) => a + b, 0);
+  const chartH = hh + bodyH;
+  const PAD = 16, PADT = 12, HEADB = 46;
+  const remLines = String(S.remarks || "").split("\n");
+  const REM = 8 + 14 + remLines.length * 14 + 6;
+  const HDRW = Math.max(W, 900);                 // ヘッダが潰れない最低幅
+  const CWID = HDRW + PAD * 2, CHGT = PADT + HEADB + chartH + REM + PADT;
+
+  SC = Math.max(1, Math.min(SC, 9000 / Math.max(CWID, CHGT)));   // 端末が扱えない巨大画像を防ぐ
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(CWID * SC); cv.height = Math.round(CHGT * SC);
+  const g = cv.getContext("2d");
+  g.scale(SC, SC);
+  g.fillStyle = "#fff"; g.fillRect(0, 0, CWID, CHGT);
+
+  const FF = '"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
+  const setF = (sz, bold) => { g.font = (bold ? "bold " : "") + sz + "px " + FF; };
+  const T = (t, x, y, sz, col, align, bold) => {
+    if (t === undefined || t === null || t === "") return;
+    setF(sz, bold); g.fillStyle = col || "#000"; g.textAlign = align || "left"; g.textBaseline = "middle";
+    g.fillText(String(t), x, y);
+  };
+  const line = (x1, y1, x2, y2, col, wdt, dash) => {
+    g.save(); g.beginPath(); g.strokeStyle = col; g.lineWidth = wdt || 1;
+    if (dash) g.setLineDash([4, 3]);
+    g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); g.restore();
+  };
+  const rect = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+
+  /* ---- 表題まわり ---- */
+  let y = PADT + 11;
+  try { g.letterSpacing = "5px"; } catch (e) {}
+  T("工 事 工 程 表", PAD, y, 15, "#000", "left", true);
+  try { g.letterSpacing = "0px"; } catch (e) {}
+  T(S.meta.project || "現場名・工事名", PAD + 140, y, 13, S.meta.project ? "#000" : "#9aa1ab", "left", true);
+  T("住所：", PAD, y + 20, 10.5, "#333");
+  T(S.meta.addr || "〒000-0000　○○", PAD + 34, y + 20, 10.5, S.meta.addr ? "#000" : "#9aa1ab");
+  T("工期：", PAD + HDRW * 0.33, y, 10.5, "#333");
+  T(S.meta.term1, PAD + HDRW * 0.33 + 38, y, 11);
+  T(S.meta.term2, PAD + HDRW * 0.33 + 38, y + 20, 11);
+  T("監理：", PAD + HDRW * 0.47, y, 10.5, "#333");
+  T(S.meta.kanri, PAD + HDRW * 0.47 + 38, y, 11);
+  T("tel　：", PAD + HDRW * 0.47, y + 20, 10.5, "#333");
+  T(S.meta.tel, PAD + HDRW * 0.47 + 38, y + 20, 11);
+  T(S.meta.co || "会社名", PAD + HDRW, y, 13, S.meta.co ? "#000" : "#9aa1ab", "right", true);
+  T(S.meta.coAddr || "〒000-0000　○○", PAD + HDRW, y + 19, 9.5, S.meta.coAddr ? "#000" : "#9aa1ab", "right");
+
+  /* ---- 表 ---- */
+  const X0 = PAD, Y0 = PADT + HEADB;          // 表の左上
+  const TX = X0 + nw;                          // 日程エリアの左端
+  const colX = i => TX + (i - d1) * cw;
+  const fillTop = Y0 + (S.startDate ? BASE.HM : 0);
+  const bodyTop = Y0 + hh, bodyBot = Y0 + chartH;
+
+  // 行の背景 → 列の色
+  let ry = bodyTop;
+  S.rows.forEach((r, ri) => { if (r.bg) rect(TX, ry, W - nw, geo.rowH[ri], r.bg); ry += geo.rowH[ri]; });
+  for (let i = d1; i <= d2; i++) {
+    const ci = colInfo(i);
+    if (ci.fill && FILLS[ci.fill]) rect(colX(i), fillTop, cw, bodyBot - fillTop, FILLS[ci.fill]);
+  }
+
+  // ヘッダ（月／番号／日／曜）
+  let hy = Y0;
+  if (S.startDate) {
+    let i = d1;
+    while (i <= d2) {
+      const d = dateOfDay(i); let j = i;
+      while (j + 1 <= d2 && dateOfDay(j + 1).getMonth() === d.getMonth()) j++;
+      T((d.getMonth() + 1) + "月", (colX(i) + colX(j) + cw) / 2, hy + BASE.HM / 2, 9.5, "#000", "center", true);
+      line(colX(j) + cw, hy, colX(j) + cw, hy + BASE.HM, "#999", 1);
+      i = j + 1;
+    }
+    line(X0, hy + BASE.HM, X0 + W, hy + BASE.HM, "#000", 1);
+    hy += BASE.HM;
+  }
+  T("工事内容　　日程", X0 + nw / 2, hy + BASE.HN / 2, 11, "#000", "center", true);
+  for (let i = d1; i <= d2; i++) {
+    T(i, colX(i) + cw / 2, hy + BASE.HN / 2, 9.5, "#000", "center", true);
+    line(colX(i) + cw, hy, colX(i) + cw, hy + BASE.HN, "#bbb", 1);
+  }
+  line(X0, hy + BASE.HN, X0 + W, hy + BASE.HN, "#000", 1);
+  hy += BASE.HN;
+  for (let i = d1; i <= d2; i++) {
+    const d = dateOfDay(i);
+    const col = d ? (((S.useHolidays && isHoliday(d)) || d.getDay() === 0) ? "#cc0000" : (d.getDay() === 6 ? "#1560c9" : "#000")) : "#000";
+    if (d) T(d.getDate(), colX(i) + cw / 2, hy + BASE.HD / 2, 9, col, "center");
+    line(colX(i) + cw, hy, colX(i) + cw, hy + BASE.HD, "#bbb", 1);
+    if (S.startDate) {
+      const wy = hy + BASE.HD;
+      T("日月火水木金土"[d.getDay()], colX(i) + cw / 2, wy + BASE.HW / 2, 9, col, "center");
+      line(colX(i) + cw, wy, colX(i) + cw, wy + BASE.HW, "#bbb", 1);
+    }
+  }
+  line(X0, bodyTop, X0 + W, bodyTop, "#000", 1);
+
+  // 本体の罫線・工種名
+  for (let i = d1; i < d2; i++) line(colX(i) + cw, bodyTop, colX(i) + cw, bodyBot, "#c4c4c4", 1);
+  ry = bodyTop;
+  S.rows.forEach((r, ri) => {
+    ry += geo.rowH[ri];
+    line(X0, ry, X0 + W, ry, "#999", 1);
+    T(r.name, X0 + nw / 2, ry - geo.rowH[ri] / 2, 11.5, "#000", "center");
+  });
+  line(TX, Y0, TX, bodyBot, "#000", 1);
+  g.strokeStyle = "#000"; g.lineWidth = 1; g.strokeRect(X0 + .5, Y0 + .5, W - 1, chartH - 1);
+
+  // 縦書き（1文字ずつ）
+  for (let i = d1; i <= d2; i++) {
+    const ci = colInfo(i); if (!ci.vtext) continue;
+    const chars = Array.from(ci.vtext), lh = 11 * 1.18;
+    let cy = (bodyTop + bodyBot) / 2 - (chars.length - 1) * lh / 2;
+    chars.forEach(ch => { T(ch, colX(i) + cw / 2, cy, 11, ci.vcolor, "center", true); cy += lh; });
+  }
+
+  // バー
+  ry = bodyTop;
+  S.rows.forEach((r, ri) => {
+    const H = geo.rowH[ri], lanes = geo.lanesArr[ri], LH = geo.laneHs[ri];
+    S.bars.filter(b => b.row === r.id).forEach(b => {
+      if (b.end < d1 || b.start > d2) return;               // この用紙には出ない
+      const lane = geo.maps[ri][b.id] || 0;
+      const yc = ry + (H - lanes * LH) / 2 + lane * LH + LH * 0.40;
+      const cs = Math.max(b.start, d1), ce = Math.min(b.end, d2);
+      const x1 = colX(cs) + cw / 2, x2 = colX(ce) + cw / 2;
+      const col = b.color || COLORS.black;
+      if (x2 > x1) line(x1, yc, x2, yc, col, 1.6, !!b.dash);
+      if (b.dots !== false || x2 === x1) {
+        g.fillStyle = col;
+        if (b.start >= d1) { g.beginPath(); g.arc(x1, yc, 3, 0, Math.PI * 2); g.fill(); }
+        if (b.end   <= d2) { g.beginPath(); g.arc(x2, yc, 3, 0, Math.PI * 2); g.fill(); }
+      }
+      if (b.label) {
+        const sz = b.fs || BASE.FS, ls = String(b.label).split("\n"), lh = sz * 1.22;
+        const al = b.align || "center";
+        const ax = al === "left" ? x1 : (al === "right" ? x2 : (x1 + x2) / 2);
+        g.save(); g.beginPath(); g.rect(TX, 0, days * cw, CHGT); g.clip();
+        let ly = (b.pos === "above") ? yc - BASE.LABGAP - ls.length * lh + lh / 2 : yc + BASE.LABGAP + lh / 2;
+        ls.forEach(t => { T(t, ax, ly, sz, b.labColor || col, al === "left" ? "left" : (al === "right" ? "right" : "center")); ly += lh; });
+        g.restore();
+      }
+    });
+    ry += H;
+  });
+
+  // 自由注記（横書き／縦書き・文字背景）
+  const _tops = rowTops(geo);
+  S.notes.forEach(n => {
+    const sz = n.fs || BASE.FS, col = n.color || "#000";
+    let nx = n.x, ny = n.y;
+    if (n.row) { const ri = S.rows.findIndex(r => r.id === n.row);
+      if (ri >= 0) { nx = (Math.min(n.day, S.days) - 1) * cw + (n.ox || 0); ny = _tops[ri] + (n.oy || 0); } }
+    const x = TX + nx - (d1 - 1) * cw, y = bodyTop + ny;
+    if (x + 200 < TX || x > TX + days * cw) return;
+    if (n.vert) {
+      const chars = Array.from(String(n.text).replace(/\n/g, "")), lh = sz * 1.18;
+      if (n.bg) rect(x, y, sz + 6, chars.length * lh + 2, n.bg);
+      chars.forEach((ch, k) => T(ch, x + (sz + 6) / 2, y + 1 + lh / 2 + k * lh, sz, col, "center"));
+    } else {
+      const ls = String(n.text).split("\n"), lh = sz * 1.25;
+      if (n.bg) {
+        setF(sz); let w = 0; ls.forEach(t => { w = Math.max(w, g.measureText(t).width); });
+        rect(x, y, w + 6, ls.length * lh + 2, n.bg);
+      }
+      ls.forEach((t, k) => T(t, x + 3, y + 1 + lh / 2 + k * lh, sz, col));
+    }
+  });
+
+  // 特記事項
+  const RY = Y0 + chartH;
+  g.strokeStyle = "#000"; g.lineWidth = 1; g.strokeRect(X0 + .5, RY + .5, W - 1, REM - 1);
+  T("【特記事項】", X0 + 8, RY + 12, 10, "#000", "left", true);
+  remLines.forEach((t, k) => T(t, X0 + 8, RY + 28 + k * 14, 10));
+
+  return cv;
+}
+
+function checkOverflowBeforeExport() {
+  const ovf = overflowLabels();
+  if (!ovf.length) return true;
+  return confirm(ovf.length + " 件のラベルが表の外にはみ出しているため、画像では切れます。\n\n" +
+    ovf.slice(0, 6).map(t => "・" + t).join("\n") + (ovf.length > 6 ? "\n…ほか " + (ovf.length - 6) + " 件" : "") +
+    "\n\n直し方：そのバーを選んで「揃え」を左／右にするか、文字を小さくしてください。\n\nこのまま書き出しますか？");
+}
+function busy(on, msg) {
+  let b = $("#busy");
+  if (!b) { b = el("div"); b.id = "busy"; document.body.appendChild(b); }
+  b.textContent = msg || "作成中…";
+  b.style.display = on ? "flex" : "none";
+}
+function canvasBlob() {
+  return new Promise(res => {
+    busy(true, "画像を作成中…");
+    setTimeout(() => {
+      buildCanvas(2).toBlob(b => { busy(false); res(b); }, "image/png");
+    }, 30);
+  });
+}
+function fileBase() {
+  return (S.meta.project || "工程表").replace(/[\\\/:*?"<>|]/g, "_").slice(0, 60);
+}
+function download(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* =========================================================
+   Excel（.xlsx）書き出し
+   ライブラリを使わず、ZIPとシートのXMLを自前で組み立てる
+   ========================================================= */
+function crc32(buf) {
+  if (!crc32.tbl) {
+    crc32.tbl = [];
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); crc32.tbl[n] = c >>> 0; }
+  }
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ crc32.tbl[(crc ^ buf[i]) & 0xFF];
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+function zipStore(files) {
+  const enc = new TextEncoder();
+  const u16 = v => [v & 255, (v >>> 8) & 255];
+  const u32 = v => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+  const body = []; const cen = []; let off = 0, cenLen = 0;
+  files.forEach(f => {
+    const nb = enc.encode(f.name), data = f.data, crc = crc32(data), n = data.length;
+    const loc = new Uint8Array([].concat(u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(n), u32(n), u16(nb.length), u16(0)));
+    body.push(loc, nb, data);
+    const h = new Uint8Array([].concat(u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(n), u32(n), u16(nb.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(off)));
+    cen.push(h, nb); cenLen += h.length + nb.length;
+    off += loc.length + nb.length + n;
+  });
+  const end = new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(cenLen), u32(off), u16(0)));
+  return new Blob(body.concat(cen, [end]), { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+function buildXlsx() {
+  const X  = t => String(t == null ? "" : t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  const enc = new TextEncoder();
+  const geo = computeGeo();
+  const D = S.days;
+  const colLetter = n => { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - m - 1) / 26; } return s; };
+  const cellRef = (r, c) => colLetter(c) + r;
+  const dayCol = i => 1 + i;                 // A列＝工種名、B列＝1日目
+
+  /* --- 書式（塗り色ごとに1つ作る） --- */
+  const fills = ["none", "gray125"];         // 0,1 は仕様上の予約
+  const fillIdx = hex => {
+    if (!hex) return 0;
+    const h = hex.replace("#", "").toUpperCase();
+    const k = "FF" + h;
+    let i = fills.indexOf(k);
+    if (i < 0) { fills.push(k); i = fills.length - 1; }
+    return i;
+  };
+  const xfs = [];                            // {fill, font, border, align, wrap}
+  const xfIdx = o => {
+    const key = JSON.stringify(o);
+    let i = xfs.findIndex(x => JSON.stringify(x) === key);
+    if (i < 0) { xfs.push(o); i = xfs.length - 1; }
+    return i;
+  };
+  const ST = {
+    plain : xfIdx({ f:0, fo:0, b:1, a:"center" }),
+    head  : xfIdx({ f:0, fo:1, b:1, a:"center" }),
+    title : xfIdx({ f:0, fo:2, b:0, a:"left" }),
+    meta  : xfIdx({ f:0, fo:0, b:0, a:"left" }),
+    name  : xfIdx({ f:0, fo:0, b:1, a:"center" }),
+    sun   : xfIdx({ f:0, fo:3, b:1, a:"center" }),
+    sat   : xfIdx({ f:0, fo:4, b:1, a:"center" }),
+    label : xfIdx({ f:0, fo:0, b:0, a:"left" })
+  };
+  const filled = (hex, base) => xfIdx(Object.assign({}, xfs[base === undefined ? ST.plain : base], { f: fillIdx(hex) }));
+
+  /* --- 各日の列の色 --- */
+  const colFill = {};
+  for (let i = 1; i <= D; i++) { const ci = colInfo(i); colFill[i] = (ci.fill && FILLS[ci.fill]) ? FILLS[ci.fill] : ""; }
+
+  /* --- 行を組み立てる --- */
+  const rows = [];   // {r, cells:[{c, v, s, str}], h}
+  const put = (r, c, v, s, isStr) => {
+    let row = rows.find(x => x.r === r);
+    if (!row) { row = { r, cells: [] }; rows.push(row); }
+    row.cells.push({ c, v, s, str: isStr });
+  };
+  const setH = (r, h) => { let row = rows.find(x => x.r === r); if (!row) { row = { r, cells: [] }; rows.push(row); } row.h = h; };
+
+  put(1, 1, "工事工程表", ST.title, true);
+  put(1, 3, S.meta.project || "", ST.meta, true);
+  put(1, dayCol(Math.max(1, Math.floor(D * 0.45))), "工期：" + (S.meta.term1 || "") + " " + (S.meta.term2 || ""), ST.meta, true);
+  put(1, dayCol(Math.max(1, Math.floor(D * 0.80))), S.meta.co || "", ST.meta, true);
+  put(2, 1, "住所：", ST.meta, true);
+  put(2, 3, S.meta.addr || "", ST.meta, true);
+  put(2, dayCol(Math.max(1, Math.floor(D * 0.45))), "監理：" + (S.meta.kanri || "") + "　tel：" + (S.meta.tel || ""), ST.meta, true);
+
+  const R_MON = 4, R_NUM = 5, R_DAY = 6, R_WK = 7, R_TOP = 8;
+  const merges = [];
+  if (S.startDate) {
+    let i = 1;
+    while (i <= D) {
+      const d = dateOfDay(i); let j = i;
+      while (j + 1 <= D && dateOfDay(j + 1).getMonth() === d.getMonth()) j++;
+      put(R_MON, dayCol(i), (d.getMonth() + 1) + "月", ST.head, true);
+      if (j > i) merges.push(cellRef(R_MON, dayCol(i)) + ":" + cellRef(R_MON, dayCol(j)));
+      i = j + 1;
+    }
+  }
+  put(R_NUM, 1, "工事内容　日程", ST.head, true);
+  for (let i = 1; i <= D; i++) {
+    const base = colFill[i] ? filled(colFill[i], ST.head) : ST.head;
+    put(R_NUM, dayCol(i), i, base, false);
+    const d = dateOfDay(i);
+    if (d) {
+      const wd = d.getDay();
+      const st = (S.useHolidays && isHoliday(d)) || wd === 0 ? ST.sun : (wd === 6 ? ST.sat : ST.plain);
+      const s2 = colFill[i] ? filled(colFill[i], st) : st;
+      put(R_DAY, dayCol(i), d.getDate(), s2, false);
+      put(R_WK,  dayCol(i), "日月火水木金土"[wd], s2, true);
+    } else {
+      const s2 = colFill[i] ? filled(colFill[i], ST.plain) : ST.plain;
+      put(R_DAY, dayCol(i), "", s2, true);
+      put(R_WK,  dayCol(i), "", s2, true);
+    }
+  }
+  setH(R_MON, 14); setH(R_NUM, 15); setH(R_DAY, 13); setH(R_WK, 13);
+
+  let r = R_TOP;
+  S.rows.forEach((row, ri) => {
+    if (row.type === "spacer") {
+      for (let i = 1; i <= D; i++) put(r, dayCol(i), "", colFill[i] ? filled(colFill[i]) : ST.plain, true);
+      put(r, 1, "", ST.name, true); setH(r, 8); r++; return;
+    }
+    const lanes = Math.max(1, geo.lanesArr[ri]);
+    const bars = S.bars.filter(b => b.row === row.id && b.start <= S.days);
+    const first = r;
+    for (let L = 0; L < lanes; L++) {
+      const inLane = bars.filter(b => (geo.maps[ri][b.id] || 0) === L);
+      for (let i = 1; i <= D; i++) {
+        const b = inLane.find(x => i >= x.start && i <= Math.min(x.end, D));
+        const hex = b ? (b.color || "#000000") : (colFill[i] || row.bg || "");
+        put(r, dayCol(i), "", hex ? filled(hex) : ST.plain, true);
+      }
+      setH(r, 9); r++;
+      // ラベル行
+      for (let i = 1; i <= D; i++) put(r, dayCol(i), "", colFill[i] ? filled(colFill[i]) : (row.bg ? filled(row.bg) : ST.plain), true);
+      inLane.forEach(b => { if (b.label) put(r, dayCol(b.start), String(b.label).replace(/\n/g, " "), ST.label, true); });
+      setH(r, 13); r++;
+    }
+    put(first, 1, row.name || "", ST.name, true);
+    if (r - 1 > first) merges.push(cellRef(first, 1) + ":" + cellRef(r - 1, 1));
+    for (let k = first + 1; k < r; k++) put(k, 1, "", ST.name, true);
+  });
+  r++;
+  const ms = [];
+  for (let i = 1; i <= D; i++) { const ci = colInfo(i); if (ci.vtext) ms.push(i + "日目：" + ci.vtext); }
+  if (ms.length) { put(r, 1, "【節目】　" + ms.join("　／　"), ST.meta, true); r++; }
+  put(r, 1, "【特記事項】", ST.meta, true); r++;
+  String(S.remarks || "").split("\n").forEach(t => { put(r, 1, t, ST.meta, true); r++; });
+
+  /* --- XML --- */
+  rows.sort((a, b) => a.r - b.r);
+  let sheet = "";
+  rows.forEach(row => {
+    row.cells.sort((a, b) => a.c - b.c);
+    sheet += '<row r="' + row.r + '"' + (row.h ? ' ht="' + row.h + '" customHeight="1"' : "") + ">";
+    row.cells.forEach(c => {
+      const ref = cellRef(row.r, c.c);
+      if (c.str) {
+        if (c.v === "" || c.v == null) sheet += '<c r="' + ref + '" s="' + c.s + '"/>';
+        else sheet += '<c r="' + ref + '" s="' + c.s + '" t="inlineStr"><is><t xml:space="preserve">' + X(c.v) + "</t></is></c>";
+      } else sheet += '<c r="' + ref + '" s="' + c.s + '"><v>' + c.v + "</v></c>";
+    });
+    sheet += "</row>";
+  });
+
+  let cols = '<col min="1" max="1" width="17" customWidth="1"/>';
+  cols += '<col min="2" max="' + dayCol(D) + '" width="3.2" customWidth="1"/>';
+
+  const fillsXml = fills.map(f => f === "none" ? '<fill><patternFill patternType="none"/></fill>'
+    : f === "gray125" ? '<fill><patternFill patternType="gray125"/></fill>'
+    : '<fill><patternFill patternType="solid"><fgColor rgb="' + f + '"/><bgColor indexed="64"/></patternFill></fill>').join("");
+  const fontsXml =
+    '<font><sz val="9"/><name val="ＭＳ Ｐゴシック"/></font>' +
+    '<font><b/><sz val="9"/><name val="ＭＳ Ｐゴシック"/></font>' +
+    '<font><b/><sz val="14"/><name val="ＭＳ Ｐゴシック"/></font>' +
+    '<font><sz val="9"/><color rgb="FFCC0000"/><name val="ＭＳ Ｐゴシック"/></font>' +
+    '<font><sz val="9"/><color rgb="FF1560C9"/><name val="ＭＳ Ｐゴシック"/></font>';
+  const bordersXml = '<border><left/><right/><top/><bottom/><diagonal/></border>' +
+    '<border><left style="hair"><color rgb="FFAAAAAA"/></left><right style="hair"><color rgb="FFAAAAAA"/></right>' +
+    '<top style="hair"><color rgb="FFAAAAAA"/></top><bottom style="hair"><color rgb="FFAAAAAA"/></bottom><diagonal/></border>';
+  const xfXml = xfs.map(x => '<xf numFmtId="0" fontId="' + (x.fo || 0) + '" fillId="' + (x.f || 0) + '" borderId="' + (x.b || 0) +
+    '" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="' + (x.a || "center") + '" vertical="center"/></xf>').join("");
+
+  const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<fonts count="5">' + fontsXml + "</fonts>" +
+    '<fills count="' + fills.length + '">' + fillsXml + "</fills>" +
+    '<borders count="2">' + bordersXml + "</borders>" +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+    '<cellXfs count="' + xfs.length + '">' + xfXml + "</cellXfs>" +
+    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+
+  const sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane xSplit="1" ySplit="7" topLeftCell="B8" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>' +
+    '<sheetFormatPr defaultRowHeight="12"/><cols>' + cols + "</cols>" +
+    "<sheetData>" + sheet + "</sheetData>" +
+    (merges.length ? '<mergeCells count="' + merges.length + '">' + merges.map(m => '<mergeCell ref="' + m + '"/>').join("") + "</mergeCells>" : "") +
+    '<pageMargins left="0.24" right="0.24" top="0.31" bottom="0.31" header="0.3" footer="0.3"/>' +
+    '<pageSetup paperSize="8" orientation="landscape" fitToWidth="1" fitToHeight="1"/></worksheet>';
+
+  const f = (name, txt) => ({ name, data: enc.encode(txt) });
+  return zipStore([
+    f("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'),
+    f("_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'),
+    f("xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<sheets><sheet name="工程表" sheetId="1" r:id="rId1"/></sheets></workbook>'),
+    f("xl/_rels/workbook.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'),
+    f("xl/styles.xml", styles),
+    f("xl/worksheets/sheet1.xml", sheetXml)
+  ]);
+}
+
+/* =========================================================
+   ツールバー
+   ========================================================= */
+function bindMeta(id, key) {
+  const e = $("#" + id);
+  e.addEventListener("input", () => { S.meta[key] = e.value; touch(); });
+}
+bindMeta("fProject","project"); bindMeta("fAddr","addr"); bindMeta("fTerm1","term1");
+bindMeta("fTerm2","term2");
+["fTerm1","fTerm2"].forEach(id => $("#" + id).addEventListener("input", () => { S.meta.termAuto = false; })); bindMeta("fKanri","kanri"); bindMeta("fTel","tel");
+bindMeta("fCo","co"); bindMeta("fCoAddr","coAddr");
+function fitRemarks() {
+  const t = $("#fRemarks");
+  t.style.height = "auto"; t.style.height = (t.scrollHeight + 2) + "px";
+}
+$("#fRemarks").addEventListener("input", e => { S.remarks = e.target.value; fitRemarks(); touch(); });
+
+function syncFields() {
+  $("#fProject").value = S.meta.project || ""; $("#fAddr").value = S.meta.addr || "";
+  $("#fTerm1").value = S.meta.term1 || ""; $("#fTerm2").value = S.meta.term2 || "";
+  $("#fKanri").value = S.meta.kanri || ""; $("#fTel").value = S.meta.tel || "";
+  $("#fCo").value = S.meta.co || ""; $("#fCoAddr").value = S.meta.coAddr || "";
+  $("#fRemarks").value = S.remarks || ""; fitRemarks();
+  $("#inStart").value = S.startDate; $("#inDays").value = S.days;
+  $("#inRest").value = S.restWeekdays.slice().sort().join("");
+  $("#inHoli").checked = !!S.useHolidays;
+  $("#inZoom").value = Math.round(z*100); $("#zoomval").textContent = Math.round(z*100) + "%";
+}
+
+/* 着工日と日数から工期欄を作り直す（手入力されていれば触らない） */
+function autoTerm() {
+  if (S.meta.termAuto === false || !S.startDate) return;
+  const f = d => (d.getFullYear() + "").slice(2) + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日";
+  S.meta.term1 = f(dateOfDay(1)) + " －";
+  S.meta.term2 = "－ " + f(dateOfDay(S.days));
+  $("#fTerm1").value = S.meta.term1; $("#fTerm2").value = S.meta.term2;
+}
+$("#inStart").addEventListener("change", e => {
+  S.startDate = e.target.value;
+  autoTerm(); histPush(); render();
+});
+$("#inDays").addEventListener("change", e => {
+  const v = Math.min(200, Math.max(5, +e.target.value || 44));
+  const out = S.bars.filter(b => b.end > v);
+  if (out.length) {
+    const names = out.slice(0, 5).map(b => {
+      const r = S.rows.find(r => r.id === b.row) || {};
+      return "・" + (r.name || "（工種名なし）") + "　" + (b.label ? String(b.label).split("\n")[0] : b.start + "〜" + b.end + "日目");
+    }).join("\n");
+    if (!confirm("日数を " + v + " 日に減らすと、次の " + out.length + " 本のバーが範囲の外に出て、表示されなくなります。\n（データは消えません。日数を戻せばそのまま出てきます）\n\n" +
+                 names + (out.length > 5 ? "\n…ほか " + (out.length - 5) + " 本" : "") +
+                 "\n\n続けますか？")) { e.target.value = S.days; return; }
+  }
+  S.days = v; e.target.value = v;
+  if (S.meta.termAuto !== false) autoTerm();
+  histPush(); render();
+});
+$("#inZoom").addEventListener("input", e => { setZoom((+e.target.value) / 100); });
+$("#inRest").addEventListener("change", e => {
+  S.restWeekdays = e.target.value.split("").map(Number); render();
+});
+$("#inHoli").addEventListener("change", e => { S.useHolidays = e.target.checked; render(); });
+$("#btnRest").addEventListener("click", () => {
+  const n = prompt("何日おきにグレーを塗りますか？（例：7 で 7,14,21… をグレーに）\n※着工日を入れない場合の休み表現に使います", "7");
+  if (!n) return;
+  const step = Math.max(1, parseInt(n, 10) || 7);
+  for (let i = step; i <= S.days; i += step) { S.cols[i] = Object.assign(S.cols[i] || {}, { fill:"gray" }); }
+  histPush(); render();
+});
+$("#btnAddRow").addEventListener("click", () => {
+  S.rows.push({ id:nid(), type:"work", name:"新しい工種", bg:"", h:BASE.ROWH });
+  select({ kind:"row", ri:S.rows.length-1 });
+});
+$("#btnAddSp").addEventListener("click", () => {
+  S.rows.push({ id:nid(), type:"spacer", name:"", bg:"", h:26 }); render();
+});
+$("#btnAddNote").addEventListener("click", () => {
+  const k = S.notes.length % 8;
+  const n = { id:nid(), x:20 + k*14, y:20 + k*18, text:"・注記", fs:BASE.FS, color:COLORS.black, vert:false, bg:"" };
+  S.notes.push(n); select({ kind:"note", id:n.id });
+});
+
+/* 保存・読込・新規 */
+function cleanState() {
+  const out = JSON.parse(JSON.stringify(S));
+  out.rows.forEach(r => { delete r.editing; });
+  // 中身のない列の設定は保存しない
+  Object.keys(out.cols).forEach(k => {
+    const c = out.cols[k];
+    if (!c || (!c.fill && !c.vtext)) delete out.cols[k];
+  });
+  return out;
+}
+function doSave() {
+  markSaved();
+  download(new Blob([JSON.stringify(cleanState(), null, 1)], { type:"application/json" }), fileBase() + "_工程表.json");
+}
+$("#btnSave").addEventListener("click", ev => { ev.stopPropagation(); toggleSaveMenu(); });
+document.addEventListener("pointerdown", ev => {
+  const m = $("#saveMenu");
+  if (m.classList.contains("on") && !m.contains(ev.target) && ev.target.id !== "btnSave") m.classList.remove("on");
+});
+
+const canShareFiles = () => {
+  try { return !!(navigator.canShare && navigator.canShare({ files: [new File(["x"], "a.txt", { type:"text/plain" })] })); }
+  catch (e) { return false; }
+};
+
+async function shareFile(blob, name, type) {
+  const f = new File([blob], name, { type });
+  if (canShareFiles()) {
+    try { await navigator.share({ files: [f], title: S.meta.project || "工事工程表" }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  download(blob, name);
+  alert("この端末では共有メニューが使えないため、ファイルを保存しました。\n保存先から LINE・メール・Google ドライブへ送ってください。");
+}
+
+function buildSaveMenu() {
+  const m = $("#saveMenu"); m.innerHTML = "";
+  const sec = t => { const d = el("div", "hdr"); d.textContent = t; m.appendChild(d); };
+  const sep = () => m.appendChild(document.createElement("hr"));
+  const item = (title, note, fn, dis) => {
+    const b = el("button", "mi"); b.innerHTML = "";
+    b.appendChild(document.createTextNode(title));
+    if (note) { const sm = document.createElement("small"); sm.textContent = note; b.appendChild(sm); }
+    if (dis) b.disabled = true; else b.onclick = () => { m.classList.remove("on"); fn(); };
+    m.appendChild(b); return b;
+  };
+
+  sec("この端末に保存");
+  item("編集用データ（.json）", "あとで読み込んで続きを編集できます。配る用ではありません", doSave);
+  item("画像（PNG）", "そのまま見られる1枚画像。LINEで送るならこれ",
+       async () => { if (!checkOverflowBeforeExport()) return; download(await canvasBlob(), fileBase() + "_工程表.png"); });
+  item("Excel（.xlsx）", "エクセルで開いて手直しできます。Googleスプレッドシートにも読み込めます",
+       () => { busy(true, "Excelを作成中…"); setTimeout(() => { download(buildXlsx(), fileBase() + "_工程表.xlsx"); busy(false); }, 30); });
+  item("PDF（用紙サイズは左の選択に従う）", "画像を貼ったPDFを作ります。iPhone / iPad でも確実に作れます", doPdf);
+  item("ブラウザの印刷画面を開く", "パソコン向け。文字がより鮮明に出ますが、用紙や背景の設定が要ります", doPrint);
+  sep();
+  sec("共有する");
+  const ok = canShareFiles();
+  item("画像を共有（LINE・メール・Drive など）", ok ? "端末の共有メニューが開きます" : "この端末は非対応のため、保存してから共有してください",
+       async () => { if (!checkOverflowBeforeExport()) return; shareFile(await canvasBlob(), fileBase() + "_工程表.png", "image/png"); });
+  item("Excelを共有（メール・LINE・Drive など）", "Googleドライブに入れれば、そのままスプレッドシートで開けます",
+       async () => shareFile(buildXlsx(), fileBase() + "_工程表.xlsx",
+                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+  item("編集用データを共有", "他の人にもこのソフトで編集してもらうとき",
+       async () => shareFile(new Blob([JSON.stringify(cleanState())], { type:"application/json" }), fileBase() + "_工程表.json", "application/json"));
+  item("メールの下書きを作る", "件名と本文だけ入ります。ファイルは保存してから添付してください", () => {
+    const sub = encodeURIComponent("【工程表】" + (S.meta.project || ""));
+    const body = encodeURIComponent(
+      (S.meta.project || "") + "\n" +
+      (S.meta.term1 ? "工期：" + S.meta.term1 + " " + (S.meta.term2 || "") + "\n" : "") +
+      "\n工程表を添付します。\n\n" + (S.meta.co || ""));
+    location.href = "mailto:?subject=" + sub + "&body=" + body;
+  });
+  sep();
+  item("Google ドライブを開く", "開いた画面に、保存したファイルをドラッグして入れてください",
+       () => window.open("https://drive.google.com/drive/my-drive", "_blank"));
+}
+function toggleSaveMenu() { const m = $("#saveMenu"); if (m.classList.contains("on")) { m.classList.remove("on"); return; } buildSaveMenu(); m.classList.add("on"); }
+
+/* 画面幅に合わせて拡大率を決める */
+$("#btnFinger").addEventListener("click", () => {
+  const on = document.body.classList.toggle("fingerscroll");
+  $("#btnFinger").textContent = on ? "指：スクロール" : "指：編集";
+  $("#btnFinger").title = on ? "1本指＝縦スクロール／バーを引くには少し長押ししてから"
+                            : "1本指＝バーを引く／2本指で移動・拡大縮小";
+});
+$("#btnFit").addEventListener("click", () => { fitToScreen(true); });
+$("#btnLoad").addEventListener("click", () => $("#fileIn").click());
+$("#fileIn").addEventListener("change", e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  if (DIRTY && !confirm("保存していない変更があります。\n読み込むと、いまの内容は失われます。\n\n続けますか？（先に「保存・共有」で保存しておくと安全です）")) return;
+  const r = new FileReader();
+  r.onload = () => {
+    let d = null;
+    try { d = JSON.parse(r.result); } catch (err) {
+      alert("このファイルは読み取れませんでした。\n工程表の保存ファイル（.json）を選んでください。\n\nいまの内容はそのままです。"); return;
+    }
+    // 工程表の保存データかどうかを、置き換える前に確かめる
+    if (!d || typeof d !== "object" || !Array.isArray(d.rows) || !Array.isArray(d.bars)) {
+      alert("このファイルは工程表の保存データではないようです。\n読み込みを中止しました。\n\nいまの内容はそのままです。"); return;
+    }
+    const base = blankState();
+    const ns = Object.assign(base, d);
+    ns.meta  = Object.assign(blankState().meta, (d.meta && typeof d.meta === "object") ? d.meta : {});
+    ns.rows  = d.rows.filter(x => x && x.id);
+    ns.bars  = d.bars.filter(x => x && x.id && x.row);
+    ns.notes = Array.isArray(d.notes) ? d.notes.filter(x => x && x.id) : [];
+    ns.cols  = (d.cols && typeof d.cols === "object" && !Array.isArray(d.cols)) ? d.cols : {};
+    ns.days  = Math.min(200, Math.max(5, +d.days || 44));
+    ns.restWeekdays = Array.isArray(d.restWeekdays) ? d.restWeekdays : [0];
+    ns.remarks = typeof d.remarks === "string" ? d.remarks : "";
+    if (!ns.rows.length) { alert("行のデータが入っていないため、読み込みを中止しました。\n\nいまの内容はそのままです。"); return; }
+
+    S = ns;                                   // ここで初めて差し替える
+    uid = 1; S.rows.concat(S.bars, S.notes).forEach(o => { const m = /^x(\d+)$/.exec(o.id || ""); if (m) uid = Math.max(uid, +m[1] + 1); });
+    HIST.stack = []; HIST.idx = -1;
+    select(null); syncFields(); render(); histPush(); markSaved();
+  };
+  r.onerror = () => alert("ファイルを開けませんでした。\n\nいまの内容はそのままです。");
+  r.readAsText(f, "utf-8");
+});
+$("#btnNew").addEventListener("click", () => {
+  if (!confirm("新しい工程表を作ります。保存していない内容は消えます。よろしいですか？")) return;
+  S = blankState(); select(null); syncFields(); render(); markSaved(); HIST.stack = []; HIST.idx = -1; histPush();
+});
+
+/* 印刷：A3横1枚に自動縮小 */
+
+/* =========================================================
+   PDFを自前で組み立てる（iPhone/iPadのブラウザ印刷に頼らない）
+   画像1枚を1ページに貼った、用紙サイズ指定つきの正式なPDF
+   ========================================================= */
+function pdfFromJpegs(pages, wPt, hPt, mgPt) {
+  const enc = t => { const a = new Uint8Array(t.length); for (let i = 0; i < t.length; i++) a[i] = t.charCodeAt(i) & 255; return a; };
+  const parts = []; let pos = 0;
+  const add  = u8 => { parts.push(u8); pos += u8.length; };
+  const addS = t  => add(enc(t));
+  const N = pages.length, total = 2 + N * 3, off = new Array(total + 1).fill(0);
+
+  addS("%PDF-1.4\n%âãÏÓ\n");
+  off[1] = pos; addS("1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n");
+  const kids = []; for (let i = 0; i < N; i++) kids.push((3 + i * 3) + " 0 R");
+  off[2] = pos; addS("2 0 obj\n<</Type/Pages/Kids[" + kids.join(" ") + "]/Count " + N + ">>\nendobj\n");
+
+  for (let i = 0; i < N; i++) {
+    const pn = 3 + i * 3, cn = 4 + i * 3, im = 5 + i * 3, p = pages[i];
+    const sc = Math.min((wPt - mgPt * 2) / p.w, (hPt - mgPt * 2) / p.h);
+    const dw = p.w * sc, dh = p.h * sc, dx = (wPt - dw) / 2, dy = (hPt - dh) / 2;
+    off[pn] = pos; addS(pn + " 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 " + wPt.toFixed(2) + " " + hPt.toFixed(2) +
+      "]/Resources<</XObject<</Im0 " + im + " 0 R>>>>/Contents " + cn + " 0 R>>\nendobj\n");
+    const cs = "q " + dw.toFixed(2) + " 0 0 " + dh.toFixed(2) + " " + dx.toFixed(2) + " " + dy.toFixed(2) + " cm /Im0 Do Q\n";
+    off[cn] = pos; addS(cn + " 0 obj\n<</Length " + cs.length + ">>\nstream\n" + cs + "endstream\nendobj\n");
+    off[im] = pos; addS(im + " 0 obj\n<</Type/XObject/Subtype/Image/Width " + p.w + "/Height " + p.h +
+      "/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length " + p.data.length + ">>\nstream\n");
+    add(p.data); addS("\nendstream\nendobj\n");
+  }
+  const xref = pos;
+  let x = "xref\n0 " + (total + 1) + "\n0000000000 65535 f \n";
+  for (let n = 1; n <= total; n++) x += ("0000000000" + off[n]).slice(-10) + " 00000 n \n";
+  x += "trailer\n<</Size " + (total + 1) + "/Root 1 0 R>>\nstartxref\n" + xref + "\n%%EOF\n";
+  addS(x);
+  return new Blob(parts, { type: "application/pdf" });
+}
+
+const isTouchDevice = () => matchMedia("(pointer: coarse)").matches;
+
+async function doPdf() {
+  const key = ($("#inPaper") && $("#inPaper").value) || "a3";
+  const P = PAPERS[key] || PAPERS.a3;
+  if (!checkOverflowBeforeExport()) return;
+  const pt = mm => mm / 25.4 * 72;
+  busy(true, "PDFを作成中…");
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    const half = Math.ceil(S.days / 2);
+    const ranges = P.split ? [[1, half], [half + 1, S.days]] : [[1, S.days]];
+    const pages = [];
+    for (const rg of ranges) {
+      const cv = buildCanvas(3, rg[0], rg[1]);
+      const blob = await new Promise(r => cv.toBlob(r, "image/jpeg", 0.92));
+      pages.push({ data: new Uint8Array(await blob.arrayBuffer()), w: cv.width, h: cv.height });
+    }
+    const pdf = pdfFromJpegs(pages, pt(P.mm[0]), pt(P.mm[1]), pt(6));
+    busy(false);
+    const name = fileBase() + "_工程表.pdf";
+    if (isTouchDevice() && canShareFiles()) await shareFile(pdf, name, "application/pdf");
+    else download(pdf, name);
+  } catch (err) {
+    busy(false);
+    alert("PDFを作れませんでした。\n" + (err && err.message ? err.message : ""));
+  }
+}
+
+const PAPERS = {
+  a3:   { mm:[420,297], css:"A3 landscape", label:"A3横1枚" },
+  a4:   { mm:[297,210], css:"A4 landscape", label:"A4横1枚" },
+  b4:   { mm:[364,257], css:"B4 landscape", label:"B4横1枚" },
+  a4x2: { mm:[297,210], css:"A4 landscape", label:"A4横2枚", split:true }
+};
+const MM2PX = mm => (mm - 12) / 25.4 * 96;   // 余白6mm×2を引いた印刷可能寸法
+
+/* 紙からはみ出すラベルを探す */
+function overflowLabels() {
+  const cw = BASE.COLW, right = S.days * cw;
+  const cv = document.createElement("canvas"), g = cv.getContext("2d");
+  const out = [];
+  S.bars.forEach(b => {
+    if (!b.label) return;
+    const sz = b.fs || BASE.FS;
+    g.font = sz + 'px "Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
+    let w = 0; String(b.label).split("\n").forEach(t => { w = Math.max(w, g.measureText(t).width); });
+    const x1 = (b.start - 1) * cw + cw / 2, x2 = (b.end - 1) * cw + cw / 2;
+    const al = b.align || "center";
+    const L = al === "left" ? x1 : (al === "right" ? x2 - w : (x1 + x2) / 2 - w / 2);
+    if (L < -2 || L + w > right + 2) {
+      const r = S.rows.find(r => r.id === b.row) || {};
+      out.push((r.name || "（工種名なし）") + "　" + String(b.label).split("\n")[0]);
+    }
+  });
+  return out;
+}
+
+/* 印刷時だけ、ヘッダの入力欄を中身の幅に縮める（表が紙の隅で極小になるのを防ぐ） */
+function shrinkHeader(on) {
+  const cv = document.createElement("canvas"), g = cv.getContext("2d");
+  document.querySelectorAll("#shead .fld").forEach(inp => {
+    if (!on) { inp.style.width = inp.dataset.w0 || ""; return; }
+    if (inp.dataset.w0 === undefined) inp.dataset.w0 = inp.style.width || "";
+    const cs = getComputedStyle(inp);
+    g.font = cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+    const t = inp.value || inp.placeholder || "";
+    inp.style.width = Math.max(40, Math.ceil(g.measureText(t).width) + 12) + "px";
+  });
+}
+function doPrint() {
+  const key = ($("#inPaper") && $("#inPaper").value) || "a3";
+  const P = PAPERS[key] || PAPERS.a3;
+  $("#pageCss").textContent = "@page { size: " + P.css + "; margin: 6mm; }";
+
+  const ovf = overflowLabels();
+  if (ovf.length && !confirm(
+      ovf.length + " 件のラベルが紙からはみ出すため、印刷すると切れます。\n\n" +
+      ovf.slice(0, 6).map(t => "・" + t).join("\n") + (ovf.length > 6 ? "\n…ほか " + (ovf.length - 6) + " 件" : "") +
+      "\n\n直し方：そのバーを選んで「揃え」を左／右にするか、文字を小さくしてください。\n\nこのまま印刷しますか？")) return;
+
+  if (P.split) return printSplit(P);
+
+  const keep = z, keepSel = sel;
+  z = 1; sel = null; MULTI = []; render(); refreshInsp(); shrinkHeader(true);
+  requestAnimationFrame(() => {
+    const sheet = $("#sheet");
+    const ps = Math.min(MM2PX(P.mm[0]) / sheet.scrollWidth, MM2PX(P.mm[1]) / sheet.scrollHeight);
+    if (ps < 0.65 && !confirm(
+        P.label + "に収まりきらないため、縮尺 " + Math.round(ps * 100) + "% まで縮めて印刷します。\n" +
+        "現場では読みづらい可能性があります。\n\n" +
+        "対策：用紙を大きくする／「A4横2枚」に分ける／行の高さを下げる／日数を減らす。\n\nこのまま印刷しますか？")) {
+      shrinkHeader(false); z = keep; sel = keepSel; syncFields(); render(); refreshInsp(); return;
+    }
+    sheet.style.setProperty("--ps", ps);
+    window.print();
+    setTimeout(() => { shrinkHeader(false); z = keep; sel = keepSel; syncFields(); render(); refreshInsp(); }, 400);
+  });
+}
+
+/* A4横2枚：前半・後半を画像にして2ページで印刷する */
+function printSplit(P) {
+  const half = Math.ceil(S.days / 2);
+  const box = $("#printImgs"); box.innerHTML = "";
+  busy(true, "印刷用の画像を作成中…");
+  setTimeout(() => {
+    const waits = [[1, half], [half + 1, S.days]].map(rg => new Promise(res => {
+      const im = document.createElement("img");
+      im.onload = () => res(); im.onerror = () => res();
+      im.src = buildCanvas(3, rg[0], rg[1]).toDataURL("image/png");
+      const d = el("div", "pg"); d.appendChild(im); box.appendChild(d);
+    }));
+    Promise.all(waits).then(() => {                      // 画像の読み込みを待ってから印刷
+      busy(false);
+      document.body.classList.add("imgprint");
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => { document.body.classList.remove("imgprint"); box.innerHTML = ""; }, 800);
+      }, 60);
+    });
+  }, 30);
+}
+$("#btnPdf").addEventListener("click", doPdf);
+
+/* 余白クリックで選択解除 */
+$("#stage").addEventListener("pointerdown", ev => {
+  if (ev.target.id !== "stage" && ev.target.id !== "sheet") return;
+  // スクロールバーの上を掴んだときは何もしない（掴んだまま画面が動くのを防ぐ）
+  const st = $("#stage"), r = st.getBoundingClientRect();
+  if (ev.clientX - r.left > st.clientWidth || ev.clientY - r.top > st.clientHeight) return;
+  select(null);
+});
+
+/* =========================================================
+   起動
+   ========================================================= */
+/* 実際の幅を測りながら、画面に収まるまで縮める */
+function fitToScreen(force) {
+  const st = $("#stage");
+  if (!force && st.scrollWidth <= st.clientWidth + 1) return false;
+  if (force) { z = 2.2; setZoomValue(); render(); }
+  for (let i = 0; i < 8; i++) {
+    if (st.scrollWidth <= st.clientWidth - 1) break;
+    const nz = Math.max(0.35, z * (st.clientWidth - 6) / st.scrollWidth);
+    if (Math.abs(nz - z) < 0.005) break;
+    z = nz; setZoomValue(); render();
+  }
+  return true;
+}
+function setZoomValue() {
+  $("#inZoom").value = Math.round(z * 100);
+  $("#zoomval").textContent = Math.round(z * 100) + "%";
+}
+window.__state = () => S;
+window.__hist = () => HIST;
+syncFields();
+render();
+histPush();
+SAVED_SNAP = JSON.stringify(S); DIRTY = false;
+fitToScreen();
+offerRestore();
+</script>
+</body>
+</html>
