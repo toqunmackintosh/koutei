@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" id="vp" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="工程表">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#2b3240">
 <title>工事工程表エディタ</title>
 <style id="pageCss">@page { size: A3 landscape; margin: 6mm; }</style>
 <style>
@@ -197,6 +205,12 @@
   /* ---------- 画像で分割印刷するとき ---------- */
   #printImgs { display:none; }
 
+  /* ---------- 更新のお知らせ ---------- */
+  #updateBar { display:none; flex:0 0 auto; align-items:center; gap:8px; padding:7px 12px;
+               background:#e6f4ea; border-bottom:1px solid #86c79b; font-size:12px; color:#14532d; }
+  #updateBar.on { display:flex; }
+  #updateBar .tb { background:#14532d; border-color:#14532d; }
+
   /* ---------- 復元バー ---------- */
   #restoreBar { display:none; flex:0 0 auto; align-items:center; gap:8px; padding:7px 12px;
                 background:#fff7d6; border-bottom:1px solid #e6cf7a; font-size:12px; color:#5b4a00; }
@@ -223,7 +237,7 @@
 
   /* ---------- print ---------- */
   @media print {
-    #toolbar, #insp, #hint, #restoreBar, #busy, #modal { display:none !important; }
+    #toolbar, #insp, #hint, #restoreBar, #updateBar, #busy, #modal { display:none !important; }
     body.imgprint > * { display:none !important; }
     body.imgprint #printImgs { display:block !important; }
     #printImgs img { width:100%; display:block; }
@@ -300,6 +314,11 @@
   <button id="btnNew2" style="display:none"></button>
 </div>
 
+<div id="updateBar">
+  <span>新しいバージョンがあります。</span>
+  <button class="tb" id="btnUpdate">更新する</button>
+  <button class="tb" id="btnUpdateLater">あとで</button>
+</div>
 <div id="restoreBar">
   <span id="restoreMsg"></span>
   <button class="tb" id="btnRestore">前回の続きを復元</button>
@@ -2539,6 +2558,24 @@ function setZoomValue() {
   $("#inZoom").value = Math.round(z * 100);
   $("#zoomval").textContent = Math.round(z * 100) + "%";
 }
+/* オフライン対応（URLで開いたときだけ有効。ファイルを直接開いた場合は何もしない） */
+(function registerSW() {
+  if (!("serviceWorker" in navigator)) return;
+  if (location.protocol !== "https:" && location.hostname !== "localhost") return;
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    reg.addEventListener("updatefound", () => {
+      const w = reg.installing; if (!w) return;
+      w.addEventListener("statechange", () => {
+        if (w.state === "installed" && navigator.serviceWorker.controller) {
+          $("#updateBar").classList.add("on");
+          $("#btnUpdate").onclick = () => { w.postMessage("skipWaiting"); location.reload(); };
+          $("#btnUpdateLater").onclick = () => $("#updateBar").classList.remove("on");
+        }
+      });
+    });
+  }).catch(() => {});
+})();
+
 window.__state = () => S;
 window.__hist = () => HIST;
 syncFields();
