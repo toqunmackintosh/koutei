@@ -182,7 +182,15 @@
            align-items:center; justify-content:center; padding:16px; }
   #modal.on { display:flex; }
   #modal .mbox { background:#fff; border-radius:13px; box-shadow:0 14px 44px rgba(0,0,0,.3);
-                 width:min(430px, 100%); padding:18px 18px 14px; }
+                 width:min(430px, 100%); padding:18px 18px 14px; max-height:92vh; overflow:auto; }
+  #modal .mbox.wide { width:min(760px, 100%); }
+  #modal .prev { border:1px solid #d5d9e0; border-radius:8px; background:#fff; margin:2px 0 4px;
+                 overflow:auto; max-height:44vh; }
+  #modal .prev img { display:block; width:100%; }
+  #modal .prev.zoom { cursor:zoom-out; }
+  #modal .prev.zoom img { width:auto; max-width:none; }
+  #modal .prev:not(.zoom) { cursor:zoom-in; }
+  #modal .phint { font-size:11px; color:#6b7280; margin:0 0 6px; }
   #modal h3 { margin:0 0 10px; font-size:15px; }
   #modal .mrow { display:flex; align-items:center; gap:8px; margin:9px 0; font-size:12.5px; }
   #modal .mrow .k { color:#555; width:70px; flex:0 0 auto; }
@@ -1599,10 +1607,11 @@ function buildCanvas(SC, D1, D2) {
   const hh = HR.reduce((a, r) => a + r.h, 0);
   const bodyH = geo.rowH.reduce((a, b) => a + b, 0);
   const chartH = hh + bodyH;
-  const PAD = 16, PADT = 12, HEADB = 46;
+  const PAD = 16, PADT = 12;
+  const HEADB = (W < 1000) ? 68 : 52;
   const remLines = String(S.remarks || "").split("\n");
   const REM = 8 + 14 + remLines.length * 14 + 6;
-  const HDRW = Math.max(W, 900);                 // ヘッダが潰れない最低幅
+  const HDRW = Math.max(W, 560);                 // ヘッダが潰れない最低幅
   const CWID = HDRW + PAD * 2, CHGT = PADT + HEADB + chartH + REM + PADT;
 
   SC = Math.max(1, Math.min(SC, 9000 / Math.max(CWID, CHGT)));   // 端末が扱えない巨大画像を防ぐ
@@ -1627,22 +1636,62 @@ function buildCanvas(SC, D1, D2) {
   const rect = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
 
   /* ---- 表題まわり ---- */
-  let y = PADT + 11;
-  try { g.letterSpacing = "5px"; } catch (e) {}
-  T("工 事 工 程 表", PAD, y, 15, "#000", "left", true);
-  try { g.letterSpacing = "0px"; } catch (e) {}
-  T(S.meta.project || "現場名・工事名", PAD + 140, y, 13, S.meta.project ? "#000" : "#9aa1ab", "left", true);
-  T("住所：", PAD, y + 20, 10.5, "#333");
-  T(S.meta.addr || "〒000-0000　○○", PAD + 34, y + 20, 10.5, S.meta.addr ? "#000" : "#9aa1ab");
-  T("工期：", PAD + HDRW * 0.33, y, 10.5, "#333");
-  T(S.meta.term1, PAD + HDRW * 0.33 + 38, y, 11);
-  T(S.meta.term2, PAD + HDRW * 0.33 + 38, y + 20, 11);
-  T("監理：", PAD + HDRW * 0.47, y, 10.5, "#333");
-  T(S.meta.kanri, PAD + HDRW * 0.47 + 38, y, 11);
-  T("tel　：", PAD + HDRW * 0.47, y + 20, 10.5, "#333");
-  T(S.meta.tel, PAD + HDRW * 0.47 + 38, y + 20, 11);
-  T(S.meta.co || "会社名", PAD + HDRW, y, 13, S.meta.co ? "#000" : "#9aa1ab", "right", true);
-  T(S.meta.coAddr || "〒000-0000　○○", PAD + HDRW, y + 19, 9.5, S.meta.coAddr ? "#000" : "#9aa1ab", "right");
+  /* 日数が少ないと横幅が足りないので、そのときは見出しを3段に組み替える */
+  const NARROW = W < 1000;
+  let y = PADT + 12;
+  const TTL = "工 事 工 程 表", TTLSZ = 12;
+  setF(TTLSZ, true);
+  const ttlW = g.measureText(TTL).width;
+  const projX = PAD + ttlW + 18;
+  const proj  = S.meta.project || "現場名・工事名";
+  const fit = (txt, size, minSize, limit) => {          // 入る大きさまで縮め、それでも無理なら省略
+    let sz = size, t = txt;
+    setF(sz, true);
+    while (sz > minSize && g.measureText(t).width > limit) { sz -= 0.5; setF(sz, true); }
+    while (t.length > 3 && g.measureText(t).width > limit) t = t.slice(0, -1);
+    if (t !== txt) t = t.slice(0, -1) + "…";
+    return { t, sz };
+  };
+  setF(13, true);
+  const coTxt = S.meta.co || "会社名";
+  const coW = g.measureText(coTxt).width;
+
+  T(TTL, PAD, y, TTLSZ, "#666", "left", true);
+  T(coTxt, PAD + HDRW, y, 13, S.meta.co ? "#000" : "#9aa1ab", "right", true);
+
+  if (NARROW) {
+    const p = fit(proj, 16, 10, (PAD + HDRW - coW - 22) - projX);
+    T(p.t, projX, y, p.sz, S.meta.project ? "#000" : "#9aa1ab", "left", true);
+    T("住所：", PAD, y + 21, 10, "#333");
+    T(S.meta.addr || "〒000-0000　○○", PAD + 32, y + 21, 10, S.meta.addr ? "#000" : "#9aa1ab");
+    T(S.meta.coAddr || "〒000-0000　○○", PAD + HDRW, y + 21, 9, S.meta.coAddr ? "#000" : "#9aa1ab", "right");
+    const y3 = y + 40;
+    let x = PAD;
+    const seg = (lab, val, labSz) => {
+      T(lab, x, y3, labSz || 10, "#333");
+      setF(labSz || 10, false); x += g.measureText(lab).width + 4;
+      const v = String(val || "");
+      T(v, x, y3, 10.5); setF(10.5, false); x += g.measureText(v).width + 18;
+    };
+    seg("工期：", (S.meta.term1 || "") + " " + (S.meta.term2 || ""));
+    seg("監理：", S.meta.kanri);
+    seg("tel：", S.meta.tel);
+  } else {
+    const termX  = PAD + HDRW * 0.42;
+    const kanriX = PAD + HDRW * 0.60;
+    const p = fit(proj, 17, 10, (termX - 22) - projX);
+    T(p.t, projX, y, p.sz, S.meta.project ? "#000" : "#9aa1ab", "left", true);
+    T("住所：", PAD, y + 22, 10.5, "#333");
+    T(S.meta.addr || "〒000-0000　○○", PAD + 34, y + 22, 10.5, S.meta.addr ? "#000" : "#9aa1ab");
+    T("工期：", termX, y, 10.5, "#333");
+    T(S.meta.term1, termX + 38, y, 11);
+    T(S.meta.term2, termX + 38, y + 22, 11);
+    T("監理：", kanriX, y, 10.5, "#333");
+    T(S.meta.kanri, kanriX + 38, y, 11);
+    T("tel　：", kanriX, y + 22, 10.5, "#333");
+    T(S.meta.tel, kanriX + 38, y + 22, 11);
+    T(S.meta.coAddr || "〒000-0000　○○", PAD + HDRW, y + 20, 9.5, S.meta.coAddr ? "#000" : "#9aa1ab", "right");
+  }
 
   /* ---- 表 ---- */
   const X0 = PAD, Y0 = PADT + HEADB;          // 表の左上
@@ -1866,7 +1915,9 @@ function buildXlsx() {
     name  : xfIdx({ f:0, fo:0, b:1, a:"center" }),
     sun   : xfIdx({ f:0, fo:3, b:1, a:"center" }),
     sat   : xfIdx({ f:0, fo:4, b:1, a:"center" }),
-    label : xfIdx({ f:0, fo:0, b:0, a:"left" })
+    label : xfIdx({ f:0, fo:0, b:0, a:"left" }),
+    proj  : xfIdx({ f:0, fo:5, b:0, a:"left" }),
+    ttl   : xfIdx({ f:0, fo:6, b:0, a:"left" })
   };
   const filled = (hex, base) => xfIdx(Object.assign({}, xfs[base === undefined ? ST.plain : base], { f: fillIdx(hex) }));
 
@@ -1883,8 +1934,8 @@ function buildXlsx() {
   };
   const setH = (r, h) => { let row = rows.find(x => x.r === r); if (!row) { row = { r, cells: [] }; rows.push(row); } row.h = h; };
 
-  put(1, 1, "工事工程表", ST.title, true);
-  put(1, 3, S.meta.project || "", ST.meta, true);
+  put(1, 1, "工事工程表", ST.ttl, true);
+  put(1, 3, S.meta.project || "", ST.proj, true);
   put(1, dayCol(Math.max(1, Math.floor(D * 0.45))), "工期：" + (S.meta.term1 || "") + " " + (S.meta.term2 || ""), ST.meta, true);
   put(1, dayCol(Math.max(1, Math.floor(D * 0.80))), S.meta.co || "", ST.meta, true);
   put(2, 1, "住所：", ST.meta, true);
@@ -1985,7 +2036,9 @@ function buildXlsx() {
     '<font><b/><sz val="9"/><name val="ＭＳ Ｐゴシック"/></font>' +
     '<font><b/><sz val="14"/><name val="ＭＳ Ｐゴシック"/></font>' +
     '<font><sz val="9"/><color rgb="FFCC0000"/><name val="ＭＳ Ｐゴシック"/></font>' +
-    '<font><sz val="9"/><color rgb="FF1560C9"/><name val="ＭＳ Ｐゴシック"/></font>';
+    '<font><sz val="9"/><color rgb="FF1560C9"/><name val="ＭＳ Ｐゴシック"/></font>' +
+    '<font><b/><sz val="13"/><name val="ＭＳ Ｐゴシック"/></font>' +
+    '<font><b/><sz val="10"/><color rgb="FF666666"/><name val="ＭＳ Ｐゴシック"/></font>';
   const bordersXml = '<border><left/><right/><top/><bottom/><diagonal/></border>' +
     '<border><left style="hair"><color rgb="FFAAAAAA"/></left><right style="hair"><color rgb="FFAAAAAA"/></right>' +
     '<top style="hair"><color rgb="FFAAAAAA"/></top><bottom style="hair"><color rgb="FFAAAAAA"/></bottom><diagonal/></border>';
@@ -1994,7 +2047,7 @@ function buildXlsx() {
 
   const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-    '<fonts count="5">' + fontsXml + "</fonts>" +
+    '<fonts count="7">' + fontsXml + "</fonts>" +
     '<fills count="' + fills.length + '">' + fillsXml + "</fills>" +
     '<borders count="2">' + bordersXml + "</borders>" +
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
@@ -2142,32 +2195,50 @@ function askFile(opt) {
     const m = $("#modal"), body = $("#mBody");
     $("#mTitle").textContent = opt.title;
     body.innerHTML = "";
+    m.querySelector(".mbox").classList.toggle("wide", !!(opt.preview && opt.preview.length));
+    if (opt.preview && opt.preview.length) {
+      const h = el("div", "phint");
+      h.textContent = "仕上がりプレビュー" + (opt.preview.length > 1 ? "（" + opt.preview.length + "ページ）" : "") + "　※画像を押すと原寸で確認できます";
+      body.appendChild(h);
+      opt.preview.forEach(cv => {
+        const box = el("div", "prev");
+        const im = document.createElement("img");
+        im.src = cv.toDataURL("image/png");
+        box.appendChild(im);
+        box.onclick = () => box.classList.toggle("zoom");
+        body.appendChild(box);
+      });
+    }
     (opt.rows || []).forEach(r => {
       const d = el("div", "mrow");
       const k = el("span", "k"); k.textContent = r[0];
       const v = el("span", "v"); v.textContent = r[1];
       d.appendChild(k); d.appendChild(v); body.appendChild(d);
     });
-    const row = el("div", "mrow");
-    const k = el("span", "k"); k.textContent = "ファイル名";
-    const inp = document.createElement("input"); inp.type = "text"; inp.id = "mName"; inp.value = opt.name;
-    row.appendChild(k); row.appendChild(inp);
-    const ext = el("span"); ext.textContent = "." + opt.ext; ext.style.color = "#555";
-    row.appendChild(ext);
-    body.appendChild(row);
+    let inp = null;
+    if (!opt.noName) {
+      const row = el("div", "mrow");
+      const k = el("span", "k"); k.textContent = "ファイル名";
+      inp = document.createElement("input"); inp.type = "text"; inp.id = "mName"; inp.value = opt.name;
+      row.appendChild(k); row.appendChild(inp);
+      const ext = el("span"); ext.textContent = "." + opt.ext; ext.style.color = "#555";
+      row.appendChild(ext);
+      body.appendChild(row);
+    }
     if (opt.note) { const n = el("div", "mnote" + (opt.warn ? " warn" : "")); n.textContent = opt.note; body.appendChild(n); }
 
     $("#mOk").textContent = opt.ok || "保存する";
     m.classList.add("on");
-    setTimeout(() => { inp.focus(); inp.select(); }, 30);
+    if (inp) setTimeout(() => { inp.focus(); inp.select(); }, 30);
 
     const done = v => { m.classList.remove("on"); MODAL_CB = null; res(v); };
+    const okv = () => inp ? ((inp.value.trim() || opt.name) + "." + opt.ext) : true;
     MODAL_CB = done;
-    $("#mOk").onclick = () => done((inp.value.trim() || opt.name) + "." + opt.ext);
+    $("#mOk").onclick = () => done(okv());
     $("#mCancel").onclick = () => done(null);
     m.onclick = ev => { if (ev.target === m) done(null); };
-    inp.onkeydown = ev => {
-      if (ev.key === "Enter") { ev.preventDefault(); done((inp.value.trim() || opt.name) + "." + opt.ext); }
+    if (inp) inp.onkeydown = ev => {
+      if (ev.key === "Enter") { ev.preventDefault(); done(okv()); }
       if (ev.key === "Escape") { ev.preventDefault(); done(null); }
     };
   });
@@ -2261,7 +2332,11 @@ function buildSaveMenu() {
   item("編集用データ（.json）", "あとで読み込んで続きを編集できます。配る用ではありません", doSave);
   item("画像（PNG）", "そのまま見られる1枚画像。LINEで送るならこれ", async () => {
     const ovf = overflowLabels();
-    const n = await askFile({ title:"画像（PNG）を作ります", rows:[["形式","画像1枚（PNG）"]],
+    busy(true, "プレビューを作成中…");
+    await new Promise(r => setTimeout(r, 20));
+    const pv = [buildCanvas(1.3)];
+    busy(false);
+    const n = await askFile({ preview: pv, title:"画像（PNG）を作ります", rows:[["形式","画像1枚（PNG）"]],
       name: fileBase(), ext:"png", ok:"作成する", warn: ovf.length > 0,
       note: ovf.length ? ovf.length + " 件のラベルが表からはみ出すため切れます。" : "工程表を1枚の画像にします。そのままLINEなどで送れます。" });
     if (!n) return; download(await canvasBlob(), n);
@@ -2392,7 +2467,14 @@ async function doPdf() {
   const ovf = overflowLabels();
   const rows = [["用紙", P.label + "（設定で変更できます）"]];
   if (S.meta.project) rows.push(["現場名", S.meta.project]);
+  const half0 = Math.ceil(S.days / 2);
+  const prevRanges = P.split ? [[1, half0], [half0 + 1, S.days]] : [[1, S.days]];
+  busy(true, "プレビューを作成中…");
+  await new Promise(r => setTimeout(r, 20));
+  const preview = prevRanges.map(rg => buildCanvas(1.3, rg[0], rg[1]));
+  busy(false);
   const n = await askFile({
+    preview: preview,
     title: "PDFを作ります",
     rows: rows,
     name: fileBase(), ext: "pdf", ok: "作成する",
@@ -2468,16 +2550,26 @@ function shrinkHeader(on) {
     inp.style.width = Math.max(40, Math.ceil(g.measureText(t).width) + 12) + "px";
   });
 }
-function doPrint() {
+async function doPrint() {
   const key = ($("#inPaper") && $("#inPaper").value) || "a3";
   const P = PAPERS[key] || PAPERS.a3;
   $("#pageCss").textContent = "@page { size: " + P.css + "; margin: 6mm; }";
 
   const ovf = overflowLabels();
-  if (ovf.length && !confirm(
-      ovf.length + " 件のラベルが紙からはみ出すため、印刷すると切れます。\n\n" +
-      ovf.slice(0, 6).map(t => "・" + t).join("\n") + (ovf.length > 6 ? "\n…ほか " + (ovf.length - 6) + " 件" : "") +
-      "\n\n直し方：そのバーを選んで「揃え」を左／右にするか、文字を小さくしてください。\n\nこのまま印刷しますか？")) return;
+  const half1 = Math.ceil(S.days / 2);
+  busy(true, "プレビューを作成中…");
+  await new Promise(r => setTimeout(r, 20));
+  const pv = (P.split ? [[1, half1], [half1 + 1, S.days]] : [[1, S.days]]).map(rg => buildCanvas(1.3, rg[0], rg[1]));
+  busy(false);
+  const go = await askFile({
+    preview: pv, title: "印刷します", ok: "印刷画面へ",
+    rows: [["用紙", P.label + "（設定で変更できます）"]],
+    noName: true,
+    warn: ovf.length > 0,
+    note: ovf.length ? ovf.length + " 件のラベルが紙からはみ出すため切れます。"
+                     : "このあとブラウザの印刷画面が開きます。用紙とプリンタを選んでください。"
+  });
+  if (!go) return;
 
   if (P.split) return printSplit(P);
 
@@ -2558,7 +2650,6 @@ function setZoomValue() {
   $("#inZoom").value = Math.round(z * 100);
   $("#zoomval").textContent = Math.round(z * 100) + "%";
 }
-/* オフライン対応（URLで開いたときだけ有効。ファイルを直接開いた場合は何もしない） */
 (function registerSW() {
   if (!("serviceWorker" in navigator)) return;
   if (location.protocol !== "https:" && location.hostname !== "localhost") return;
