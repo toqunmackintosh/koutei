@@ -65,7 +65,8 @@
 
   #head { position:sticky; top:0; z-index:7; background:#fff; }
   .r { display:flex; position:relative; z-index:1; }
-  .rname { position:sticky; left:0; z-index:6; background:#fff; box-shadow:-16px 0 0 #fff; border-right:1px solid #000; border-bottom:1px solid #999;
+  .rname { position:sticky; left:0; z-index:6; background:#fff; box-shadow:-16px 0 0 #fff;
+           border-left:1px solid #000; border-right:1px solid #000; border-bottom:1px solid #999;
            display:flex; align-items:center; justify-content:center; text-align:center; user-select:none; }
   .rname.sel { box-shadow: inset 0 0 0 2px #2563eb; }
   /* 工種プルダウン（見た目はただの文字、クリックで一覧） */
@@ -177,6 +178,52 @@
     #toolbar, #insp { touch-action:manipulation; }
   }
 
+  /* ---------- 使い方（イラスト付き） ---------- */
+  #help { display:none; position:fixed; inset:0; z-index:960; background:rgba(20,24,31,.5); padding:14px; }
+  #help.on { display:flex; align-items:center; justify-content:center; }
+  #help .hbox { background:#fff; border-radius:14px; width:min(940px,100%); max-height:92vh;
+                display:flex; flex-direction:column; box-shadow:0 16px 48px rgba(0,0,0,.32); overflow:hidden; }
+  #help .hhead { display:flex; align-items:center; justify-content:space-between;
+                 padding:13px 16px; background:#2b3240; color:#fff; }
+  #help .hhead h2 { margin:0; font-size:16px; }
+  #help .hhead .btn { background:#48525f; border-color:#5a6474; color:#fff; }
+  #help .hbody { overflow:auto; padding:14px 16px 20px; }
+  #help h3 { font-size:13px; color:#1f7a4d; margin:16px 0 8px; padding-bottom:5px; border-bottom:2px solid #d7ecdf; }
+  #help .hbody > h3:first-child { margin-top:2px; }
+  #help .hgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:12px; }
+  #help .hc { border:1px solid #e2e5ea; border-radius:10px; padding:10px; background:#fafbfc; }
+  #help .hc svg { width:100%; height:auto; display:block; background:#fff; border:1px solid #eceff3; border-radius:6px; }
+  #help .hc b { display:block; font-size:12.5px; margin:8px 0 3px; }
+  #help .hc span { display:block; font-size:11.5px; color:#5b6472; line-height:1.55; }
+  #help svg .f { fill:#fff; stroke:#9aa1ab; stroke-width:1.2; }
+  #help svg .hd { fill:#f1f3f6; }
+  #help svg .g { stroke:#dfe3e8; stroke-width:1; }
+  #help svg .g2 { stroke:#e5e7eb; stroke-width:1; }
+  #help svg .ar { stroke:#111; stroke-width:2.4; }
+  #help svg .ar.r { stroke:#e60012; }
+  #help svg .d { fill:#111; } #help svg .d.r { fill:#e60012; }
+  #help svg .acc { stroke:#1f7a4d; stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  #help svg .cur { fill:#2b3240; }
+  #help svg .tap { fill:none; stroke:#2563eb; stroke-width:1.6; opacity:.85; }
+  #help svg .tap2 { fill:none; stroke:#2563eb; stroke-width:1.2; opacity:.4; }
+  #help svg .fing { fill:#cfe0ff; stroke:#2563eb; stroke-width:1.6; }
+  #help svg .gray { fill:#d9d9d9; } #help svg .yel { fill:#ffff00; } #help svg .pink { fill:#ffd6e7; }
+  #help svg .sel { fill:none; stroke:#2563eb; stroke-width:1.6; stroke-dasharray:4 3; }
+  #help svg .pop { fill:#fff; stroke:#c3c9d2; stroke-width:1.2; }
+  #help svg .note { fill:#ffff00; stroke:#d8c400; stroke-width:1; }
+  #help svg .note2 { fill:#cfe8ff; stroke:#8fc0e8; stroke-width:1; }
+  #help svg .btn2 { fill:#39424f; }
+  #help svg text { font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif; }
+  #help svg .t { font-size:9px; fill:#6b7280; text-anchor:middle; }
+  #help svg .t2 { font-size:10px; fill:#111; text-anchor:middle; }
+  #help svg .btn2 ~ .t2 { fill:#fff; }
+  #help svg .v { font-size:10px; fill:#111; text-anchor:middle; }
+  #help .hkeys { width:100%; border-collapse:collapse; font-size:12px; }
+  #help .hkeys td { border:1px solid #e5e7eb; padding:6px 9px; }
+  #help .hkeys td:nth-child(odd) { background:#f4f6f8; font-weight:700; white-space:nowrap; width:108px; }
+  #help .hlist { margin:0; padding-left:20px; font-size:12.5px; line-height:1.9; color:#333; }
+  @media (max-width: 700px) { #help .hgrid { grid-template-columns:1fr; } }
+
   /* ---------- 確認ダイアログ ---------- */
   #modal { display:none; position:fixed; inset:0; z-index:950; background:rgba(20,24,31,.45);
            align-items:center; justify-content:center; padding:16px; }
@@ -245,7 +292,7 @@
 
   /* ---------- print ---------- */
   @media print {
-    #toolbar, #insp, #hint, #restoreBar, #updateBar, #busy, #modal { display:none !important; }
+    #toolbar, #insp, #hint, #restoreBar, #updateBar, #busy, #modal, #help { display:none !important; }
     body.imgprint > * { display:none !important; }
     body.imgprint #printImgs { display:block !important; }
     #printImgs img { width:100%; display:block; }
@@ -314,7 +361,10 @@
     <div class="prow"><span class="pl">用紙</span>
       <select id="inPaper">
         <option value="a3">A3横1枚</option><option value="a4">A4横1枚</option>
-        <option value="b4">B4横1枚</option><option value="a4x2">A4横2枚（前半・後半）</option>
+        <option value="b4">B4横1枚</option>
+        <option value="a3x2">A3横2枚（前半・後半）</option>
+        <option value="a3p2">A3縦2枚（前半・後半）</option>
+        <option value="a3q4">A3縦横4枚（左右2×上下2）</option>
       </select></div>
   </div>
 
@@ -371,6 +421,84 @@
 </div>
 
 <div id="printImgs"></div>
+
+<div id="help">
+ <div class="hbox">
+  <div class="hhead">
+    <h2>使い方</h2>
+    <button class="btn" id="helpClose">閉じる</button>
+  </div>
+  <div class="hbody">
+
+   <h3>工程バーを引く</h3>
+   <div class="hgrid">
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><path class="g" d="M40 10v58M76 10v58M112 10v58M148 10v58M184 10v58"/><path class="ar" d="M48 40h56"/><circle class="d" cx="48" cy="40" r="4"/><circle class="d" cx="104" cy="40" r="4"/><path class="cur" d="M104 44l0 14 4-4 3 6 3-1-3-6 5 0z"/></svg>
+     <b>ドラッグ＝バー作成</b><span>空いている所を横になぞると、その日数のバーができます。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><path class="g" d="M40 10v58M76 10v58M112 10v58M148 10v58M184 10v58"/><circle class="d" cx="94" cy="38" r="5"/><circle class="tap" cx="94" cy="38" r="13"/><circle class="tap2" cx="94" cy="38" r="19"/><text class="t" x="94" y="66">2回</text></svg>
+     <b>ダブルクリック＝1日バー</b><span>その日だけの作業は2回叩きます。指なら2回タップ。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><path class="ar" d="M56 38h72"/><circle class="d" cx="56" cy="38" r="4"/><circle class="d" cx="128" cy="38" r="4"/><path class="acc" d="M140 30v16M136 38h22M152 33l6 5-6 5"/><text class="t" x="105" y="66">端をつまむ</text></svg>
+     <b>伸ばす・縮める</b><span>バーの端をつまんで左右に動かします。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><path class="ar" d="M70 30h70"/><circle class="d" cx="70" cy="30" r="4"/><circle class="d" cx="140" cy="30" r="4"/><path class="acc" d="M96 44v14M89 52l7 7 7-7M60 30h-14M46 26l-6 4 6 4"/><text class="t" x="150" y="66">上下で行も変わる</text></svg>
+     <b>動かす</b><span>真ん中をつまむと左右へ、上下に動かすと別の工種の行へ移せます。</span></div>
+   </div>
+
+   <h3>並べ方</h3>
+   <div class="hgrid">
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><path class="ar" d="M30 38h70M100 38h70"/><circle class="d" cx="30" cy="38" r="4"/><circle class="d" cx="100" cy="38" r="4"/><circle class="d" cx="170" cy="38" r="4"/><text class="t" x="105" y="66">同じ段に一直線</text></svg>
+     <b>続けて引く</b><span>前の工程の終わりと次の始まりを同じ日にすると、同じ段に並びます。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><path class="ar" d="M28 28h84"/><circle class="d" cx="28" cy="28" r="4"/><circle class="d" cx="112" cy="28" r="4"/><path class="ar r" d="M76 52h100"/><circle class="d r" cx="76" cy="52" r="4"/><circle class="d r" cx="176" cy="52" r="4"/></svg>
+     <b>重なると自動で段が増える</b><span>期間が重なるバーは上下に振り分けられ、行の高さも自動で伸びます。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><path class="ar" d="M30 38h60"/><circle class="d" cx="30" cy="38" r="4"/><circle class="d" cx="90" cy="38" r="4"/><rect class="sel" x="106" y="24" width="86" height="28" rx="3"/><path class="ar r" d="M118 38h62"/><circle class="d r" cx="118" cy="38" r="4"/><circle class="d r" cx="180" cy="38" r="4"/></svg>
+     <b>Shift＋クリックで複数選択</b><span>まとめて動かす・色を変える・消すができます。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><rect class="hd" x="4" y="10" width="52" height="58"/><path class="g" d="M56 10v58"/><text class="t2" x="30" y="34">軽鉄工事</text><rect class="pop" x="66" y="20" width="96" height="48" rx="4"/><path class="g2" d="M74 34h80M74 46h80M74 58h80"/><path class="cur" d="M150 40l0 14 4-4 3 6 3-1-3-6 5 0z"/></svg>
+     <b>工種はプルダウン</b><span>工種名を押すと一覧が出ます。「（自由入力）」で好きな名前も付けられます。</span></div>
+   </div>
+
+   <h3>日付の欄</h3>
+   <div class="hgrid">
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><rect class="gray" x="76" y="10" width="24" height="58"/><rect class="yel" x="124" y="10" width="24" height="58"/><path class="g" d="M28 10v58M52 10v58M76 10v58M100 10v58M124 10v58M148 10v58M172 10v58"/><path class="cur" d="M88 2l0 14 4-4 3 6 3-1-3-6 5 0z"/></svg>
+     <b>列に色を塗る</b><span>日付の数字を押すと、その列をグレー・黄・ピンクなどに塗れます。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><rect class="pink" x="140" y="10" width="26" height="58"/><text class="v" x="153" y="26">引</text><text class="v" x="153" y="42">渡</text><text class="v" x="153" y="58">し</text><path class="g" d="M40 10v58M76 10v58M112 10v58M140 10v58M166 10v58"/></svg>
+     <b>節目は縦書き</b><span>引渡し・OPENなどを列に縦書きで入れられます。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="20" rx="2"/><text class="t2" x="105" y="24">1 2 3 4 5 6 7 8</text><rect class="f" x="4" y="34" width="202" height="34" rx="2"/><text class="t2" x="105" y="48">7 8 9 10 11 12 13</text><text class="t" x="105" y="64">月 火 水 木 金 土 日</text></svg>
+     <b>工事日数の表示</b><span>「設定」で1・2・3…の通し番号を出せます。何列目を1日目にするかも選べます。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><rect class="note" x="24" y="20" width="84" height="20" rx="3"/><text class="t2" x="66" y="34">・防災器具撤去</text><rect class="note2" x="132" y="18" width="18" height="46" rx="3"/><text class="v" x="141" y="32">足</text><text class="v" x="141" y="48">場</text></svg>
+     <b>自由な注記</b><span>バーに関係ない書き込みも置けます。横書き・縦書き・文字の背景色を選べます。</span></div>
+   </div>
+
+   <h3>iPad・iPhoneの操作</h3>
+   <div class="hgrid">
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><circle class="fing" cx="70" cy="38" r="11"/><path class="ar" d="M84 38h56"/><circle class="d" cx="140" cy="38" r="4"/><text class="t" x="105" y="66">1本指</text></svg>
+     <b>1本指＝バーを引く</b><span>長押しは要りません。指を置いてそのままなぞります。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><circle class="fing" cx="72" cy="38" r="11"/><circle class="fing" cx="138" cy="38" r="11"/><path class="acc" d="M56 38h-14M42 34l-6 4 6 4M154 38h14M168 34l6 4-6 4"/><text class="t" x="105" y="66">2本指</text></svg>
+     <b>2本指＝移動と拡大縮小</b><span>2本指でつまむと拡大、そのまま動かすと画面が移動します。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><rect class="btn2" x="52" y="26" width="106" height="26" rx="6"/><text class="t2" x="105" y="43">指：編集</text></svg>
+     <b>1本指でスクロールしたいとき</b><span>ツールバーの「指：編集」を押すと「指：スクロール」に切り替わります。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><rect class="pop" x="24" y="18" width="70" height="46" rx="4"/><text class="t2" x="59" y="44">PDF</text><path class="acc" d="M100 40h26M120 35l6 5-6 5"/><rect class="pop" x="134" y="18" width="52" height="46" rx="4"/><text class="t2" x="160" y="44">共有</text></svg>
+     <b>PDF・画像・Excel</b><span>「PDFを作る」や「ファイル」から作れます。作る前に仕上がりを確認できます。</span></div>
+   </div>
+
+   <h3>キーボードのショートカット（パソコン）</h3>
+   <table class="hkeys">
+    <tr><td>Ctrl+Z</td><td>元に戻す</td><td>Ctrl+Y</td><td>やり直す</td></tr>
+    <tr><td>Ctrl+C / V</td><td>コピー／貼り付け</td><td>Ctrl+D</td><td>複製</td></tr>
+    <tr><td>Delete</td><td>選んだバーを消す</td><td>F4</td><td>直前の書式を繰り返す</td></tr>
+    <tr><td>← →</td><td>バーを1日ずらす</td><td>Shift+← →</td><td>右端を伸縮</td></tr>
+    <tr><td>↑ ↓</td><td>段を上下に移す</td><td>Esc</td><td>選択を外す</td></tr>
+    <tr><td>Ctrl+S</td><td>保存</td><td>Ctrl+P</td><td>印刷画面</td></tr>
+   </table>
+
+   <h3>困ったとき</h3>
+   <ul class="hlist">
+    <li><b>行が段でいっぱいでバーを足せない</b> … バーを選んで「この行にもう1本」を押します。</li>
+    <li><b>ラベルが紙からはみ出す</b> … PDFや印刷の前に警告が出ます。そのバーの「揃え」を左か右にするか、文字を小さくします。</li>
+    <li><b>間違えて消した</b> … Ctrl+Z、またはツールバーの ↶ で戻せます。</li>
+    <li><b>閉じてしまった</b> … 次に開くと上に「前回の続きを復元」が出ます。30秒ごとに自動で下書きを保存しています。</li>
+   </ul>
+
+  </div>
+ </div>
+</div>
 
 <div id="modal">
   <div class="mbox">
@@ -1590,10 +1718,44 @@ function setZoom(nz, cx, cy) {
 /* =========================================================
    画像（PNG）書き出し：画面と同じものを canvas に描き直す
    ========================================================= */
-function buildCanvas(SC, D1, D2) {
+/* 用紙に合わせて列幅・工種列幅を広げる（日数が少ないとき左右に余白が出るのを防ぐ） */
+function cvSize(d1, d2, cw, nw, r1, r2) {
+  const days = d2 - d1 + 1, W = nw + days * cw;
+  const geo = computeGeo();
+  let hh = 0;
+  if (S.startDate) hh += BASE.HM;
+  if (showNum()) hh += BASE.HN;
+  if (S.startDate) hh += (showNum() ? BASE.HD : BASE.HN) + BASE.HW; else hh += BASE.HD;
+  let bodyH = 0;
+  for (let i = r1; i <= r2; i++) bodyH += geo.rowH[i];
+  const HEADB = (W < 1000) ? 68 : 52;
+  const rem = 8 + 14 + String(S.remarks || "").split("\n").length * 14 + 6;
+  return { w: Math.max(W, 560) + 32, h: 12 + HEADB + hh + bodyH + rem + 12 };
+}
+function fitCols(P, d1, d2, r1, r2) {
+  const A = (P.mm[0] - 12) / (P.mm[1] - 12);          // 紙の（余白を除いた）縦横比
+  const days = d2 - d1 + 1;
+  let nw = BASE.NAMEW, cw = BASE.COLW;
+  for (let k = 0; k < 5; k++) {                       // 何度か測り直して紙幅に寄せる
+    const s = cvSize(d1, d2, cw, nw, r1, r2);
+    const gap = s.h * A - s.w;
+    if (gap <= 2) break;
+    const addN = Math.min(gap * 0.22, Math.max(0, 250 - nw));
+    const ncw  = Math.min(150, cw + (gap - addN) / days);
+    if (addN < 0.2 && ncw - cw < 0.2) break;
+    nw += addN; cw = ncw;
+  }
+  return { colW: cw, nameW: nw };
+}
+
+function buildCanvas(SC, D1, D2, OPT) {
   SC = SC || 2;
+  const O = OPT || {};
   const d1 = D1 || 1, d2 = D2 || S.days;
-  const cw = BASE.COLW, nw = BASE.NAMEW, days = d2 - d1 + 1;
+  const r1 = (O.r1 === undefined) ? 0 : O.r1;
+  const r2 = (O.r2 === undefined) ? S.rows.length - 1 : O.r2;
+  const cw = O.colW || BASE.COLW, nw = O.nameW || BASE.NAMEW, days = d2 - d1 + 1;
+  const sx = cw / BASE.COLW;                            // 注記など基準幅で持っている値の倍率
   const W = nw + days * cw;
   const geo = computeGeo();
   const HR = (function () {
@@ -1605,7 +1767,7 @@ function buildCanvas(SC, D1, D2) {
     return rs;
   })();
   const hh = HR.reduce((a, r) => a + r.h, 0);
-  const bodyH = geo.rowH.reduce((a, b) => a + b, 0);
+  let bodyH = 0; for (let i = r1; i <= r2; i++) bodyH += geo.rowH[i];
   const chartH = hh + bodyH;
   const PAD = 16, PADT = 12;
   const HEADB = (W < 1000) ? 68 : 52;
@@ -1702,7 +1864,8 @@ function buildCanvas(SC, D1, D2) {
 
   // 行の背景 → 列の色
   let ry = bodyTop;
-  S.rows.forEach((r, ri) => { if (r.bg) rect(TX, ry, W - nw, geo.rowH[ri], r.bg); ry += geo.rowH[ri]; });
+  for (let ri = r1; ri <= r2; ri++) { const r = S.rows[ri];
+    if (r.bg) rect(TX, ry, W - nw, geo.rowH[ri], r.bg); ry += geo.rowH[ri]; }
   for (let i = d1; i <= d2; i++) {
     const ci = colInfo(i);
     if (ci.fill && FILLS[ci.fill]) rect(colX(i), fillTop, cw, bodyBot - fillTop, FILLS[ci.fill]);
@@ -1743,11 +1906,11 @@ function buildCanvas(SC, D1, D2) {
   // 本体の罫線・工種名
   for (let i = d1; i < d2; i++) line(colX(i) + cw, bodyTop, colX(i) + cw, bodyBot, "#c4c4c4", 1);
   ry = bodyTop;
-  S.rows.forEach((r, ri) => {
+  for (let ri = r1; ri <= r2; ri++) {
     ry += geo.rowH[ri];
     line(X0, ry, X0 + W, ry, "#999", 1);
-    T(r.name, X0 + nw / 2, ry - geo.rowH[ri] / 2, 11.5, "#000", "center");
-  });
+    T(S.rows[ri].name, X0 + nw / 2, ry - geo.rowH[ri] / 2, 11.5, "#000", "center");
+  }
   line(TX, Y0, TX, bodyBot, "#000", 1);
   g.strokeStyle = "#000"; g.lineWidth = 1; g.strokeRect(X0 + .5, Y0 + .5, W - 1, chartH - 1);
 
@@ -1761,7 +1924,8 @@ function buildCanvas(SC, D1, D2) {
 
   // バー
   ry = bodyTop;
-  S.rows.forEach((r, ri) => {
+  for (let ri = r1; ri <= r2; ri++) {
+    const r = S.rows[ri];
     const H = geo.rowH[ri], lanes = geo.lanesArr[ri], LH = geo.laneHs[ri];
     S.bars.filter(b => b.row === r.id).forEach(b => {
       if (b.end < d1 || b.start > d2) return;               // この用紙には出ない
@@ -1787,17 +1951,20 @@ function buildCanvas(SC, D1, D2) {
       }
     });
     ry += H;
-  });
+  }
 
   // 自由注記（横書き／縦書き・文字背景）
   const _tops = rowTops(geo);
+  const bandTop = _tops[r1] || 0;
   S.notes.forEach(n => {
     const sz = n.fs || BASE.FS, col = n.color || "#000";
-    let nx = n.x, ny = n.y;
+    let nx = n.x * sx, ny = n.y;
     if (n.row) { const ri = S.rows.findIndex(r => r.id === n.row);
-      if (ri >= 0) { nx = (Math.min(n.day, S.days) - 1) * cw + (n.ox || 0); ny = _tops[ri] + (n.oy || 0); } }
-    const x = TX + nx - (d1 - 1) * cw, y = bodyTop + ny;
+      if (ri < r1 || ri > r2) return;
+      if (ri >= 0) { nx = (Math.min(n.day, S.days) - 1) * cw + (n.ox || 0) * sx; ny = _tops[ri] + (n.oy || 0); } }
+    const x = TX + nx - (d1 - 1) * cw, y = bodyTop + ny - bandTop;
     if (x + 200 < TX || x > TX + days * cw) return;
+    if (y < bodyTop - 20 || y > bodyBot) return;
     if (n.vert) {
       const chars = Array.from(String(n.text).replace(/\n/g, "")), lh = sz * 1.18;
       if (n.bg) rect(x, y, sz + 6, chars.length * lh + 2, n.bg);
@@ -2375,6 +2542,15 @@ function buildSaveMenu() {
 
 
 /* 画面幅に合わせて拡大率を決める */
+$("#btnUndo").addEventListener("click", () => { closePanels(); undo(); });
+$("#btnRedo").addEventListener("click", () => { closePanels(); redo(); });
+$("#btnHelp").addEventListener("click", () => { closePanels(); $("#help").classList.add("on"); });
+$("#helpClose").addEventListener("click", () => $("#help").classList.remove("on"));
+$("#help").addEventListener("click", ev => { if (ev.target.id === "help") $("#help").classList.remove("on"); });
+document.addEventListener("keydown", ev => {
+  if (ev.key === "Escape" && $("#help").classList.contains("on")) { ev.preventDefault(); $("#help").classList.remove("on"); }
+}, true);
+
 $("#btnFinger").addEventListener("click", () => {
   const on = document.body.classList.toggle("fingerscroll");
   $("#btnFinger").textContent = on ? "指：スクロール" : "指：編集";
@@ -2467,11 +2643,11 @@ async function doPdf() {
   const ovf = overflowLabels();
   const rows = [["用紙", P.label + "（設定で変更できます）"]];
   if (S.meta.project) rows.push(["現場名", S.meta.project]);
-  const half0 = Math.ceil(S.days / 2);
-  const prevRanges = P.split ? [[1, half0], [half0 + 1, S.days]] : [[1, S.days]];
+  const pg = pageRanges(P);
   busy(true, "プレビューを作成中…");
   await new Promise(r => setTimeout(r, 20));
-  const preview = prevRanges.map(rg => buildCanvas(1.3, rg[0], rg[1]));
+  const preview = pg.map(q => buildCanvas(1.3, q.d1, q.d2,
+    Object.assign({ r1:q.r1, r2:q.r2 }, fitCols(P, q.d1, q.d2, q.r1, q.r2))));
   busy(false);
   const n = await askFile({
     preview: preview,
@@ -2491,11 +2667,10 @@ async function doPdf() {
   busy(true, "PDFを作成中…");
   await new Promise(r => setTimeout(r, 30));
   try {
-    const half = Math.ceil(S.days / 2);
-    const ranges = P.split ? [[1, half], [half + 1, S.days]] : [[1, S.days]];
     const pages = [];
-    for (const rg of ranges) {
-      const cv = buildCanvas(4, rg[0], rg[1]);                       // 3倍→4倍（約290dpi）
+    for (const q of pageRanges(P)) {
+      const cv = buildCanvas(4, q.d1, q.d2,
+        Object.assign({ r1:q.r1, r2:q.r2 }, fitCols(P, q.d1, q.d2, q.r1, q.r2)));
       const blob = await new Promise(r => cv.toBlob(r, "image/jpeg", 0.96));
       pages.push({ data: new Uint8Array(await blob.arrayBuffer()), w: cv.width, h: cv.height });
     }
@@ -2513,8 +2688,27 @@ const PAPERS = {
   a3:   { mm:[420,297], css:"A3 landscape", label:"A3横1枚" },
   a4:   { mm:[297,210], css:"A4 landscape", label:"A4横1枚" },
   b4:   { mm:[364,257], css:"B4 landscape", label:"B4横1枚" },
-  a4x2: { mm:[297,210], css:"A4 landscape", label:"A4横2枚", split:true }
+  a3x2: { mm:[420,297], css:"A3 landscape", label:"A3横2枚",     cx:2 },
+  a3p2: { mm:[297,420], css:"A3 portrait",  label:"A3縦2枚",     cx:2 },
+  a3q4: { mm:[420,297], css:"A3 landscape", label:"A3縦横4枚",   cx:2, cy:2 }
 };
+/* 用紙を何分割するか（日数の分割 × 行の分割） */
+function pageRanges(P) {
+  const cx = P.cx || 1, cy = P.cy || 1;
+  const dcut = [], rcut = [];
+  for (let i = 0; i < cx; i++) {
+    const a = Math.floor(S.days * i / cx) + 1, b = Math.floor(S.days * (i + 1) / cx);
+    if (b >= a) dcut.push([a, b]);
+  }
+  const nR = S.rows.length;
+  for (let j = 0; j < cy; j++) {
+    const a = Math.floor(nR * j / cy), b = Math.floor(nR * (j + 1) / cy) - 1;
+    if (b >= a) rcut.push([a, b]);
+  }
+  const out = [];
+  rcut.forEach(r => dcut.forEach(d => out.push({ d1:d[0], d2:d[1], r1:r[0], r2:r[1] })));
+  return out;
+}
 const MM2PX = mm => (mm - 12) / 25.4 * 96;   // 余白6mm×2を引いた印刷可能寸法
 
 /* 紙からはみ出すラベルを探す */
@@ -2556,10 +2750,10 @@ async function doPrint() {
   $("#pageCss").textContent = "@page { size: " + P.css + "; margin: 6mm; }";
 
   const ovf = overflowLabels();
-  const half1 = Math.ceil(S.days / 2);
   busy(true, "プレビューを作成中…");
   await new Promise(r => setTimeout(r, 20));
-  const pv = (P.split ? [[1, half1], [half1 + 1, S.days]] : [[1, S.days]]).map(rg => buildCanvas(1.3, rg[0], rg[1]));
+  const pv = pageRanges(P).map(q => buildCanvas(1.3, q.d1, q.d2,
+    Object.assign({ r1:q.r1, r2:q.r2 }, fitCols(P, q.d1, q.d2, q.r1, q.r2))));
   busy(false);
   const go = await askFile({
     preview: pv, title: "印刷します", ok: "印刷画面へ",
@@ -2571,7 +2765,7 @@ async function doPrint() {
   });
   if (!go) return;
 
-  if (P.split) return printSplit(P);
+  if ((P.cx || 1) > 1 || (P.cy || 1) > 1) return printSplit(P);
 
   const keep = z, keepSel = sel;
   z = 1; sel = null; MULTI = []; render(); refreshInsp(); shrinkHeader(true);
@@ -2599,14 +2793,14 @@ async function doPrint() {
 
 /* A4横2枚：前半・後半を画像にして2ページで印刷する */
 function printSplit(P) {
-  const half = Math.ceil(S.days / 2);
   const box = $("#printImgs"); box.innerHTML = "";
   busy(true, "印刷用の画像を作成中…");
   setTimeout(() => {
-    const waits = [[1, half], [half + 1, S.days]].map(rg => new Promise(res => {
+    const waits = pageRanges(P).map(q => new Promise(res => {
       const im = document.createElement("img");
       im.onload = () => res(); im.onerror = () => res();
-      im.src = buildCanvas(4, rg[0], rg[1]).toDataURL("image/png");
+      im.src = buildCanvas(4, q.d1, q.d2,
+        Object.assign({ r1:q.r1, r2:q.r2 }, fitCols(P, q.d1, q.d2, q.r1, q.r2))).toDataURL("image/png");
       const d = el("div", "pg"); d.appendChild(im); box.appendChild(d);
     }));
     Promise.all(waits).then(() => {                      // 画像の読み込みを待ってから印刷
