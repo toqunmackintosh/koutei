@@ -98,10 +98,10 @@
   /* bars */
   .bar { position:absolute; cursor:move; z-index:3; touch-action:none; }
   .bar .in { position:absolute; top:0; bottom:0; }
-  .bar .ln { position:absolute; left:0; right:0; top:50%; border-top-width:1.4px; border-top-style:solid; }
+  .bar .seg { position:absolute; top:50%; border-top-style:solid; }
   .bar .dot { position:absolute; top:50%; border-radius:50%; }
   .bar .lab { position:absolute; white-space:pre; line-height:1.22; pointer-events:none; }
-  .bar.sel .ln { border-top-width:2.4px; }
+  .bar.sel .seg { filter:brightness(.85); }
   .bar.sel { outline:1.5px dashed #2563eb; outline-offset:2px; }
   .bar .hL, .bar .hR { position:absolute; top:0; bottom:0; width:9px; cursor:ew-resize; touch-action:none; }
   .bar .hL { left:0; } .bar .hR { right:0; }
@@ -118,6 +118,7 @@
   /* remarks */
   #remarks { box-sizing:content-box; border:1px solid #000; border-top:none; padding:6px 8px; }
   #remarks .rt { font-weight:700; margin-bottom:3px; }
+  #stampBox { text-align:right; color:#888; letter-spacing:.08em; padding:3px 2px 0; }
   #remarks textarea { width:100%; border:none; outline:none; resize:none; overflow:hidden; font-family:inherit; background:transparent; }
 
   /* ---------- ツールバーの引き出し ---------- */
@@ -179,6 +180,24 @@
   }
 
   /* ---------- 使い方（イラスト付き） ---------- */
+  #bkup { display:none; position:fixed; inset:0; z-index:958; background:rgba(20,24,31,.5); padding:14px;
+          align-items:center; justify-content:center; }
+  #bkup.on { display:flex; }
+  #bkup .hbox { background:#fff; border-radius:14px; max-height:88vh; display:flex; flex-direction:column;
+                box-shadow:0 16px 48px rgba(0,0,0,.32); overflow:hidden; }
+  #bkup .hhead { display:flex; align-items:center; justify-content:space-between;
+                 padding:13px 16px; background:#2b3240; color:#fff; }
+  #bkup .hhead h2 { margin:0; font-size:15px; }
+  #bkup .hhead .btn { background:#48525f; border-color:#5a6474; color:#fff; }
+  #bkup .hbody { overflow:auto; padding:10px 14px 16px; }
+  .bkrow { display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid #eceff3; }
+  .bkrow.bkhead { border-bottom:2px solid #e5e7eb; padding-bottom:11px; margin-bottom:4px; }
+  .bkinfo { flex:1 1 auto; min-width:0; }
+  .bkinfo b { display:block; font-size:12.5px; }
+  .bkinfo span { display:block; font-size:11.5px; color:#5b6472; }
+  .bknote { font-size:11px; color:#6b7280; }
+  .bkempty { padding:14px 4px; font-size:12.5px; color:#6b7280; }
+
   #help { display:none; position:fixed; inset:0; z-index:960; background:rgba(20,24,31,.5); padding:14px; }
   #help.on { display:flex; align-items:center; justify-content:center; }
   #help .hbox { background:#fff; border-radius:14px; width:min(940px,100%); max-height:92vh;
@@ -292,7 +311,7 @@
 
   /* ---------- print ---------- */
   @media print {
-    #toolbar, #insp, #hint, #restoreBar, #updateBar, #busy, #modal, #help { display:none !important; }
+    #toolbar, #insp, #hint, #restoreBar, #updateBar, #busy, #modal, #help, #bkup { display:none !important; }
     body.imgprint > * { display:none !important; }
     body.imgprint #printImgs { display:block !important; }
     #printImgs img { width:100%; display:block; }
@@ -347,11 +366,17 @@
     <div class="prow"><span class="pl">1日目の位置</span><input type="number" id="inNumFrom" min="1" max="200">列目
       <button class="mini" id="btnNumReset">先頭に戻す</button></div>
     <hr>
-    <div class="prow"><span class="pl">続けて引いた<br>バー</span>
-      <select id="inJoin">
-        <option value="1">同じ段に並べる（端点をくっつける）</option>
-        <option value="0">下の段に分ける</option>
+    <div class="prow"><span class="pl">バーの<br>引き方</span>
+      <select id="inFull">
+        <option value="1">マスいっぱい（1日工事も線で出る）</option>
+        <option value="0">マスの中心から中心（従来）</option>
       </select></div>
+    <div class="prow"><span class="pl">同じ日に<br>2工程</span>
+      <select id="inJoin">
+        <option value="0">下の段に分ける</option>
+        <option value="1">同じ段に並べる（従来）</option>
+      </select></div>
+    <div class="prow"><label class="ck"><input type="checkbox" id="inRestDash"> 休みをまたぐ区間を点線にする（新しいバーの既定）</label></div>
     <hr>
     <div class="prow"><span class="pl">休み</span>
       <select id="inRest"><option value="0">日曜のみ</option><option value="06">土日</option><option value="">なし</option></select>
@@ -417,6 +442,7 @@
       <div class="rt">【特記事項】</div>
       <textarea id="fRemarks" rows="3"></textarea>
     </div>
+    <div id="stampBox"></div>
   </div>
 </div>
 
@@ -445,7 +471,7 @@
    <h3>並べ方</h3>
    <div class="hgrid">
     <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><path class="ar" d="M30 38h70M100 38h70"/><circle class="d" cx="30" cy="38" r="4"/><circle class="d" cx="100" cy="38" r="4"/><circle class="d" cx="170" cy="38" r="4"/><text class="t" x="105" y="66">同じ段に一直線</text></svg>
-     <b>続けて引く</b><span>前の工程の終わりと次の始まりを同じ日にすると、同じ段に並びます。</span></div>
+     <b>続けて引く</b><span>前の工程の終わりと次の始まりが同じ日のとき、既定では下の段に分かれます。「設定」で同じ段に一直線に並べる形にも変えられます。</span></div>
     <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><path class="ar" d="M28 28h84"/><circle class="d" cx="28" cy="28" r="4"/><circle class="d" cx="112" cy="28" r="4"/><path class="ar r" d="M76 52h100"/><circle class="d r" cx="76" cy="52" r="4"/><circle class="d r" cx="176" cy="52" r="4"/></svg>
      <b>重なると自動で段が増える</b><span>期間が重なるバーは上下に振り分けられ、行の高さも自動で伸びます。</span></div>
     <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><path class="ar" d="M30 38h60"/><circle class="d" cx="30" cy="38" r="4"/><circle class="d" cx="90" cy="38" r="4"/><rect class="sel" x="106" y="24" width="86" height="28" rx="3"/><path class="ar r" d="M118 38h62"/><circle class="d r" cx="118" cy="38" r="4"/><circle class="d r" cx="180" cy="38" r="4"/></svg>
@@ -464,6 +490,24 @@
      <b>工事日数の表示</b><span>「設定」で1・2・3…の通し番号を出せます。何列目を1日目にするかも選べます。</span></div>
     <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><rect class="note" x="24" y="20" width="84" height="20" rx="3"/><text class="t2" x="66" y="34">・防災器具撤去</text><rect class="note2" x="132" y="18" width="18" height="46" rx="3"/><text class="v" x="141" y="32">足</text><text class="v" x="141" y="48">場</text></svg>
      <b>自由な注記</b><span>バーに関係ない書き込みも置けます。横書き・縦書き・文字の背景色を選べます。</span></div>
+   </div>
+
+   <h3>線の引き方と休みの日</h3>
+   <div class="hgrid">
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><path class="g" d="M36 10v58M60 10v58M84 10v58M108 10v58M132 10v58M156 10v58M180 10v58"/><path class="ar" d="M84 32h24"/><circle class="d" cx="84" cy="32" r="3.5"/><circle class="d" cx="108" cy="32" r="3.5"/><circle class="d" cx="96" cy="56" r="4"/><text class="t" x="152" y="35">マスいっぱい</text><text class="t" x="152" y="59">従来は点だけ</text></svg>
+     <b>1日の工事もマス1個分の線</b><span>1日だけの工事も、マスの幅いっぱいに線が引かれます。「設定」で従来の「マスの中心から中心」にも戻せます。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="58" rx="3"/><rect class="gray" x="84" y="10" width="48" height="58"/><path class="g" d="M36 10v58M60 10v58M84 10v58M108 10v58M132 10v58M156 10v58M180 10v58"/><path class="ar" d="M12 38h72"/><path class="ar" d="M84 38h48" stroke-dasharray="5 4"/><path class="ar" d="M132 38h66"/><circle class="d" cx="12" cy="38" r="3.5"/><circle class="d" cx="198" cy="38" r="3.5"/><text class="t" x="108" y="64">休み</text></svg>
+     <b>休みをまたぐと点線</b><span>休み（グレーの列・日曜祝日）に重なった所だけ点線になり、工事をしない日がひと目で分かります。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="pop" x="18" y="14" width="174" height="50" rx="5"/><text class="t" x="105" y="30">休みの日</text><rect class="f" x="28" y="36" width="74" height="20" rx="5"/><text class="t2" x="65" y="50">実線のまま</text><rect class="btn2" x="110" y="36" width="74" height="20" rx="5"/><text class="t2" x="147" y="50">点線にする</text></svg>
+     <b>工程ごとに切り替え</b><span>休みでも進める工事は、バーを選んで「実線のまま」を押します。バー1本ずつ別々に決められます。</span></div>
+   </div>
+
+   <h3>保存とバックアップ</h3>
+   <div class="hgrid">
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="pop" x="16" y="12" width="178" height="54" rx="5"/><text class="t" x="105" y="26">バックアップ履歴</text><path class="g2" d="M26 34h158M26 48h158"/><text class="t" x="62" y="45">10/20 14:05</text><text class="t" x="62" y="59">10/20 14:02</text><rect class="btn2" x="126" y="35" width="56" height="14" rx="4"/><text class="t2" x="154" y="45">戻す</text></svg>
+     <b>自動バックアップ</b><span>3分ごとに自動で控えを取り、最大12件ためます。「ファイル」→「バックアップ履歴」から、戻したい時点を選べます。</span></div>
+    <div class="hc"><svg viewBox="0 0 210 78"><rect class="f" x="4" y="10" width="202" height="40" rx="3"/><path class="g" d="M4 24h202"/><text class="t" x="105" y="40">工事工程表</text><text class="t" x="176" y="62" style="font-size:8px">261020</text></svg>
+     <b>右下に年月日</b><span>表の枠の外・右下に、作った日が6桁（年月日）で小さく入ります。印刷・PDF・画像すべてに入るので、どれが最新か分かります。</span></div>
    </div>
 
    <h3>iPad・iPhoneの操作</h3>
@@ -494,9 +538,17 @@
     <li><b>ラベルが紙からはみ出す</b> … PDFや印刷の前に警告が出ます。そのバーの「揃え」を左か右にするか、文字を小さくします。</li>
     <li><b>間違えて消した</b> … Ctrl+Z、またはツールバーの ↶ で戻せます。</li>
     <li><b>閉じてしまった</b> … 次に開くと上に「前回の続きを復元」が出ます。30秒ごとに自動で下書きを保存しています。</li>
+    <li><b>だいぶ前の状態に戻したい</b> … 「ファイル」→「バックアップ履歴」から、3分ごとに取っている控え（最大12件）を選んで戻せます。</li>
    </ul>
 
   </div>
+ </div>
+</div>
+
+<div id="bkup">
+ <div class="hbox" style="width:min(560px,100%)">
+  <div class="hhead"><h2>バックアップ履歴</h2><button class="btn" id="bkClose">閉じる</button></div>
+  <div class="hbody" id="bkList"></div>
  </div>
 </div>
 
@@ -553,7 +605,9 @@ function blankState() {
     days: 44,
     showNum: false,          // 工事日数（通し番号）を出すか
     numFrom: 1,              // 何列目を「1日目」とするか
-    joinTouch: true,         // 端点が接するだけのバーを同じ段に並べるか
+    fullCell: true,          // バーをマスいっぱいに引く（false＝従来の中心から中心）
+    joinTouch: false,        // 同じ日に2工程が入るとき同じ段に置くか
+    restDashDefault: true,   // 新しいバーで「休みは点線」を既定にするか
     restWeekdays: [0],       // 0=日, 6=土
     useHolidays: true,       // 祝日も休みにする
     cols: {},                // { "7": {fill:"gray", vtext:"", vcolor:"#000"} }
@@ -638,6 +692,13 @@ function dateOfDay(i) { // i = 1..days
 }
 function isHoliday(d) { return !!holidaysOf(d.getFullYear())[(d.getMonth()+1) + "-" + d.getDate()]; }
 function holidayName(d) { return holidaysOf(d.getFullYear())[(d.getMonth()+1) + "-" + d.getDate()] || ""; }
+/* その日が休みか（手動で塗った色が優先。グレー＝休み） */
+function isRestDay(i) {
+  const c = S.cols[i];
+  if (c && c.fill) return c.fill === "gray";
+  const d = dateOfDay(i);
+  return !!(d && isRest(d));
+}
 function isRest(d) { return S.restWeekdays.indexOf(d.getDay()) >= 0 || (S.useHolidays && isHoliday(d)); }
 
 /* =========================================================
@@ -772,6 +833,30 @@ function repeatFmt() {
   histPush(); render(); refreshInsp();
 }
 
+/* --- バーの区間計算（休みの日だけ点線にする） --- */
+function barRuns(b, lo, hi) {
+  const a0 = Math.max(b.start, lo === undefined ? 1 : lo);
+  const b0 = Math.min(b.end, S.days, hi === undefined ? S.days : hi);
+  const runs = [];
+  let cur = null;
+  for (let i = a0; i <= b0; i++) {
+    const r = (b.restDash !== false) && isRestDay(i);
+    if (!cur || cur.rest !== r) { cur = { a:i, b:i, rest:r }; runs.push(cur); }
+    else cur.b = i;
+  }
+  return runs;
+}
+/* 区間の左右の位置（colLeft は「その日のマスの左端」を返す関数） */
+function runEdges(b, run, colLeft, cw, realStart, realEnd) {
+  const full = S.fullCell !== false;
+  const bEnd = Math.min(b.end, S.days);
+  const x1 = full ? colLeft(run.a)
+                  : ((run.a === b.start && realStart) ? colLeft(run.a) + cw / 2 : colLeft(run.a));
+  const x2 = full ? colLeft(run.b) + cw
+                  : ((run.b === bEnd && realEnd) ? colLeft(run.b) + cw / 2 : colLeft(run.b) + cw);
+  return [x1, x2];
+}
+
 /* --- 段（レーン）計算：同じ日に重なるバーを自動で上下に振り分ける --- */
 function laneMap(rowId) {
   const bs = S.bars.filter(b => b.row === rowId && b.start <= S.days);   // 範囲外は表示しないだけ
@@ -830,6 +915,9 @@ function render() {
   $("#chart").style.width = (NW() + trackW()) + "px";
   $("#remarks").style.width = (NW() + trackW() - 16) + "px";   // 左右パディング8px分を引く
   $("#remarks").style.fontSize = P(10) + "px";
+  $("#stampBox").style.width = (NW() + trackW()) + "px";
+  $("#stampBox").style.fontSize = P(8) + "px";
+  $("#stampBox").textContent = stamp6();
   $("#shead").style.fontSize = P(11) + "px";
   document.querySelectorAll("#shead .fld").forEach(inp => {
     if (inp.dataset.bw === undefined) inp.dataset.bw = parseFloat(inp.style.width) || 150;
@@ -973,11 +1061,15 @@ function rowNameCtl(row, ri) {
 
 function barEl(b, rowHpx, lane, lanes, laneH) {
   const cw = CW();
-  const L = (b.start - 1) * cw + cw/2;
-  const W = (Math.min(b.end, S.days) - b.start) * cw;
+  const colLeft = i => (i - 1) * cw;
+  const runs = barRuns(b);
+  const xs = runs.map(r => runEdges(b, r, colLeft, cw, true, true));
+  const L = xs.length ? xs[0][0] : colLeft(b.start) + cw / 2;
+  const R = xs.length ? xs[xs.length - 1][1] : L;
+  const W = Math.max(0, R - L);
   const PAD = P(8);
   const LH = P(laneH || BASE.LANEH);
-  const cy = (P(rowHpx) - lanes*LH)/2 + lane*LH + LH*0.40;
+  const cy = (P(rowHpx) - lanes * LH) / 2 + lane * LH + LH * 0.40;
   const e = el("div", "bar", { left:(L - PAD)+"px", width:(W + PAD*2)+"px",
                                top:(cy - P(7))+"px", height:P(14)+"px" });
   e.dataset.id = b.id;
@@ -985,16 +1077,19 @@ function barEl(b, rowHpx, lane, lanes, laneH) {
   const col = b.color || COLORS.black;
 
   const inr = el("div", "in", { left:PAD+"px", width:W+"px" });
-  if (W > 0) {
-    const ln = el("div", "ln", { borderTopColor:col, borderTopStyle: b.dash ? "dashed" : "solid",
-                                 borderTopWidth: Math.max(1.5, P(2.4))+"px" });
-    inr.appendChild(ln);
-  }
+  const bw = Math.max(1.5, P(2.4)) + "px";
+  runs.forEach((r, k) => {
+    const a1 = xs[k][0], a2 = xs[k][1];
+    if (a2 - a1 < 0.5) return;
+    inr.appendChild(el("div", "seg", { left:(a1 - L)+"px", width:(a2 - a1)+"px",
+      borderTopColor:col, borderTopStyle: (b.dash || r.rest) ? "dashed" : "solid", borderTopWidth:bw }));
+  });
+
   const ds = P(7);
   const mkDot = pos => { const d = el("div", "dot", { width:ds+"px", height:ds+"px", background:col,
                           marginTop:(-ds/2)+"px" }); d.style[pos] = (-ds/2)+"px"; return d; };
   if (b.dots !== false) { inr.appendChild(mkDot("left")); if (W > 0) inr.appendChild(mkDot("right")); }
-  else if (W === 0) inr.appendChild(mkDot("left"));   // 1日作業は点が無いと見えないので必ず出す
+  else if (W === 0) inr.appendChild(mkDot("left"));
 
   if (b.label) {
     const lab = el("div", "lab", { fontSize:P(b.fs || BASE.FS)+"px", color: b.labColor || col });
@@ -1253,7 +1348,8 @@ document.addEventListener("pointerup", () => {
     const a = Math.min(drag.d0, drag.d1), b = Math.max(drag.d0, drag.d1);
     if (drag.maxMove < 8) { drag = null; return; }   // 軽く触れただけではバーを作らない（1日バーはダブルタップ）
     const nb = { id:nid(), row:S.rows[drag.ri].id, start:a, end:b, label:"", pos:"below",
-                 align:"center", color:COLORS.black, dash:false, fs:BASE.FS };
+                 align:"center", color:COLORS.black, dash:false, fs:BASE.FS,
+                 restDash: S.restDashDefault !== false };
     S.bars.push(nb);
     drag = null; render(); selectBar(nb.id);
     clearTimeout(HIST.t); histPush();                   // バー作成も1操作＝1履歴
@@ -1330,7 +1426,8 @@ function addBarToRow(rowId, from, to) {
     b = Math.min(S.days, a + 2);
   }
   const nb = { id:nid(), row:rowId, start:a, end:b, label:"", pos:"below",
-               align:"center", color:COLORS.black, dash:false, fs:BASE.FS };
+               align:"center", color:COLORS.black, dash:false, fs:BASE.FS,
+               restDash: S.restDashDefault !== false };
   S.bars.push(nb);
   histPush(); selectBar(nb.id);
   const ta = $("#inspLabel"); if (ta) ta.focus();
@@ -1390,6 +1487,9 @@ function refreshInsp() {
     gap(); lab("線");
     btn("実線", () => setF("dash",false), !b.dash);
     btn("点線", () => setF("dash",true),  !!b.dash);
+    gap(); lab("休みの日");
+    btn("点線にする", () => setF("restDash", true),  b.restDash !== false);
+    btn("実線のまま", () => setF("restDash", false), b.restDash === false);
     gap(); lab("端点");
     btn("あり", () => setF("dots",true),  b.dots !== false);
     btn("なし", () => setF("dots",false), b.dots === false);
@@ -1620,6 +1720,85 @@ function offerRestore() {
   }
 })();
 
+
+/* =========================================================
+   自動バックアップ（履歴つき）
+   ========================================================= */
+const BK_KEY = "koutei_backups_v1";
+const BK_MAX = 12, BK_BYTES = 2600000, BK_EVERY = 180000;   // 12件 / 約2.6MB / 3分ごと
+let BK_LAST = "";
+
+function bkRead() {
+  if (!HAS_STORE) return [];
+  try { const a = JSON.parse(localStorage.getItem(BK_KEY) || "[]"); return Array.isArray(a) ? a : []; }
+  catch (e) { return []; }
+}
+function bkWrite(a) { try { localStorage.setItem(BK_KEY, JSON.stringify(a)); return true; } catch (e) { return false; } }
+
+function bkPush(manual) {
+  if (!HAS_STORE) return false;
+  const snap = JSON.stringify(cleanState());
+  if (!manual && snap === BK_LAST) return false;          // 変化がなければためない
+  if (!manual && S.bars.length === 0 && !S.meta.project) return false;
+  BK_LAST = snap;
+  const a = bkRead();
+  a.push({ t: Date.now(), name: S.meta.project || "", bars: S.bars.length, rows: S.rows.length,
+           days: S.days, manual: !!manual, s: snap });
+  while (a.length > BK_MAX) a.shift();
+  let bytes = 0; a.forEach(x => bytes += (x.s || "").length);
+  while (a.length > 3 && bytes > BK_BYTES) bytes -= (a.shift().s || "").length;
+  let ok = bkWrite(a);
+  while (!ok && a.length > 1) { a.shift(); ok = bkWrite(a); }   // 容量超過なら古いものから捨てる
+  return ok;
+}
+setInterval(() => bkPush(false), BK_EVERY);
+window.addEventListener("pagehide", () => bkPush(false));
+
+function bkRestore(idx) {
+  const a = bkRead(); const e = a[idx]; if (!e) return;
+  let d = null;
+  try { d = JSON.parse(e.s); } catch (err) { alert("このバックアップは読み取れませんでした。"); return; }
+  if (DIRTY && !confirm("いまの内容は置き換わります。続けますか？\n（戻したあとでも Ctrl+Z で元に戻せます）")) return;
+  bkPush(true);                                   // 戻す前の状態も残しておく
+  S = Object.assign(blankState(), d);
+  S.meta = Object.assign(blankState().meta, d.meta || {});
+  uid = 1; S.rows.concat(S.bars, S.notes).forEach(o => { const m = /^x(\d+)$/.exec(o.id || ""); if (m) uid = Math.max(uid, +m[1] + 1); });
+  HIST.stack = []; HIST.idx = -1;
+  select(null); syncFields(); render(); histPush(); DIRTY = true;
+  $("#bkup").classList.remove("on");
+}
+
+function openBackups() {
+  closePanels();
+  $("#bkup").classList.add("on");
+  const box = $("#bkList"); box.innerHTML = "";
+  const a = bkRead().slice().reverse();
+  const top = el("div", "bkrow bkhead");
+  const b1 = el("button", "btn"); b1.textContent = "今すぐバックアップ";
+  b1.onclick = () => { bkPush(true) ? openBackups() : alert("この端末ではバックアップを保存できません。"); };
+  const note = el("span", "bknote");
+  note.textContent = HAS_STORE ? "3分ごとに自動で保存しています（最大" + BK_MAX + "件）"
+                               : "この端末ではブラウザの保存領域が使えないため、履歴は残りません";
+  top.appendChild(b1); top.appendChild(note); box.appendChild(top);
+
+  if (!a.length) { const p = el("div", "bkempty"); p.textContent = "まだバックアップはありません。"; box.appendChild(p); return; }
+  a.forEach((e, k) => {
+    const idx = bkRead().length - 1 - k;
+    const d = new Date(e.t);
+    const r = el("div", "bkrow");
+    const info = el("div", "bkinfo");
+    const t1 = el("b");
+    t1.textContent = (d.getMonth() + 1) + "/" + d.getDate() + " " + two(d.getHours()) + ":" + two(d.getMinutes())
+                   + (e.manual ? "（手動）" : "");
+    const t2 = el("span");
+    t2.textContent = (e.name || "（現場名なし）") + "　バー" + e.bars + "本・" + e.rows + "行・" + e.days + "日";
+    info.appendChild(t1); info.appendChild(t2);
+    const bt = el("button", "btn"); bt.textContent = "この時点に戻す";
+    bt.onclick = () => bkRestore(idx);
+    r.appendChild(info); r.appendChild(bt); box.appendChild(r);
+  });
+}
+
 /* =========================================================
    拡大縮小：ピンチ（2本指）／Ctrl+ホイール
    ========================================================= */
@@ -1773,8 +1952,9 @@ function buildCanvas(SC, D1, D2, OPT) {
   const HEADB = (W < 1000) ? 68 : 52;
   const remLines = String(S.remarks || "").split("\n");
   const REM = 8 + 14 + remLines.length * 14 + 6;
+  const STAMPH = 15;
   const HDRW = Math.max(W, 560);                 // ヘッダが潰れない最低幅
-  const CWID = HDRW + PAD * 2, CHGT = PADT + HEADB + chartH + REM + PADT;
+  const CWID = HDRW + PAD * 2, CHGT = PADT + HEADB + chartH + REM + STAMPH + PADT;
 
   SC = Math.max(1, Math.min(SC, 9000 / Math.max(CWID, CHGT)));   // 端末が扱えない巨大画像を防ぐ
   const cv = document.createElement("canvas");
@@ -1931,14 +2111,21 @@ function buildCanvas(SC, D1, D2, OPT) {
       if (b.end < d1 || b.start > d2) return;               // この用紙には出ない
       const lane = geo.maps[ri][b.id] || 0;
       const yc = ry + (H - lanes * LH) / 2 + lane * LH + LH * 0.40;
-      const cs = Math.max(b.start, d1), ce = Math.min(b.end, d2);
-      const x1 = colX(cs) + cw / 2, x2 = colX(ce) + cw / 2;
       const col = b.color || COLORS.black;
-      if (x2 > x1) line(x1, yc, x2, yc, col, 1.6, !!b.dash);
-      if (b.dots !== false || x2 === x1) {
+      const realStart = b.start >= d1, realEnd = Math.min(b.end, S.days) <= d2;
+      const runs = barRuns(b, d1, d2);
+      const xs = runs.map(r => runEdges(b, r, colX, cw, realStart, realEnd));
+      const x1 = xs.length ? xs[0][0] : colX(Math.max(b.start, d1)) + cw / 2;
+      const x2 = xs.length ? xs[xs.length - 1][1] : x1;
+      runs.forEach((r, k) => {
+        const a1 = xs[k][0], a2 = xs[k][1];
+        if (a2 - a1 < 0.5) return;
+        line(a1, yc, a2, yc, col, 1.7, (b.dash || r.rest));
+      });
+      if (b.dots !== false || x2 - x1 < 0.5) {
         g.fillStyle = col;
-        if (b.start >= d1) { g.beginPath(); g.arc(x1, yc, 3, 0, Math.PI * 2); g.fill(); }
-        if (b.end   <= d2) { g.beginPath(); g.arc(x2, yc, 3, 0, Math.PI * 2); g.fill(); }
+        if (realStart) { g.beginPath(); g.arc(x1 + 2, yc, 3, 0, Math.PI * 2); g.fill(); }
+        if (realEnd)   { g.beginPath(); g.arc(x2 - 2, yc, 3, 0, Math.PI * 2); g.fill(); }
       }
       if (b.label) {
         const sz = b.fs || BASE.FS, ls = String(b.label).split("\n"), lh = sz * 1.22;
@@ -1984,6 +2171,7 @@ function buildCanvas(SC, D1, D2, OPT) {
   g.strokeStyle = "#000"; g.lineWidth = 1; g.strokeRect(X0 + .5, RY + .5, W - 1, REM - 1);
   T("【特記事項】", X0 + 8, RY + 12, 10, "#000", "left", true);
   remLines.forEach((t, k) => T(t, X0 + 8, RY + 28 + k * 14, 10));
+  T(stamp6(), PAD + HDRW, RY + REM + 9, 8.5, "#8a8f96", "right");   // 枠外右下の年月日
 
   return cv;
 }
@@ -2277,6 +2465,8 @@ function syncFields() {
   $("#inShowNum").checked = !!S.showNum;
   $("#inNumFrom").value = S.numFrom || 1;
   $("#inJoin").value = (S.joinTouch === false) ? "0" : "1";
+  $("#inFull").value = (S.fullCell === false) ? "0" : "1";
+  $("#inRestDash").checked = (S.restDashDefault !== false);
   if ($("#inPaper") && S.paper) $("#inPaper").value = S.paper;
   $("#inRest").value = S.restWeekdays.slice().sort().join("");
   $("#inHoli").checked = !!S.useHolidays;
@@ -2314,6 +2504,8 @@ $("#inDays").addEventListener("change", e => {
 $("#inZoom").addEventListener("input", e => { setZoom((+e.target.value) / 100); });
 $("#inShowNum").addEventListener("change", e => { S.showNum = e.target.checked; histPush(); render(); });
 $("#inJoin").addEventListener("change", e => { S.joinTouch = e.target.value === "1"; histPush(); render(); });
+$("#inFull").addEventListener("change", e => { S.fullCell = e.target.value === "1"; histPush(); render(); });
+$("#inRestDash").addEventListener("change", e => { S.restDashDefault = e.target.checked; });
 $("#inNumFrom").addEventListener("change", e => {
   S.numFrom = Math.min(S.days, Math.max(1, +e.target.value || 1));
   e.target.value = S.numFrom; histPush(); render();
@@ -2351,6 +2543,7 @@ $("#btnAddNote").addEventListener("click", () => {
    ========================================================= */
 function two(n) { return ("0" + n).slice(-2); }
 function stamp() { const d = new Date(); return two(d.getMonth() + 1) + two(d.getDate()); }
+function stamp6() { const d = new Date(); return two(d.getFullYear() % 100) + two(d.getMonth() + 1) + two(d.getDate()); }
 function fileBase() {
   const p = (S.meta.project || "").replace(/[\\\/:*?"<>|]/g, "_").trim().slice(0, 40);
   return (p ? p + "_" : "") + "工程表_" + stamp();
@@ -2494,6 +2687,7 @@ function buildSaveMenu() {
   sec("工程表");
   item("新規", "白紙から作り直します", () => $("#btnNew2").click());
   item("読込（.json）", "保存した編集用データを開きます", () => $("#fileIn").click());
+  item("バックアップ履歴", "3分ごとの自動保存から、前の時点に戻せます", openBackups);
   sep();
   sec("この端末に保存");
   item("編集用データ（.json）", "あとで読み込んで続きを編集できます。配る用ではありません", doSave);
@@ -2546,9 +2740,12 @@ $("#btnUndo").addEventListener("click", () => { closePanels(); undo(); });
 $("#btnRedo").addEventListener("click", () => { closePanels(); redo(); });
 $("#btnHelp").addEventListener("click", () => { closePanels(); $("#help").classList.add("on"); });
 $("#helpClose").addEventListener("click", () => $("#help").classList.remove("on"));
+$("#bkClose").addEventListener("click", () => $("#bkup").classList.remove("on"));
+$("#bkup").addEventListener("click", ev => { if (ev.target.id === "bkup") $("#bkup").classList.remove("on"); });
 $("#help").addEventListener("click", ev => { if (ev.target.id === "help") $("#help").classList.remove("on"); });
 document.addEventListener("keydown", ev => {
   if (ev.key === "Escape" && $("#help").classList.contains("on")) { ev.preventDefault(); $("#help").classList.remove("on"); }
+  if (ev.key === "Escape" && $("#bkup").classList.contains("on")) { ev.preventDefault(); $("#bkup").classList.remove("on"); }
 }, true);
 
 $("#btnFinger").addEventListener("click", () => {
