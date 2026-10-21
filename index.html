@@ -140,6 +140,22 @@
                border-radius:6px; cursor:pointer; font-size:12.5px; color:#111; }
   .panel .mi:hover { background:#eef4ff; }
 
+  /* ---------- 設定の参考図（バーの引き方） ---------- */
+  .cfgfigs { display:flex; flex-direction:column; gap:6px; margin:2px 0 8px; }
+  .cfgfig { border:1px solid #dfe3e8; border-radius:8px; padding:6px 8px 2px; background:#fafbfc; opacity:.55; cursor:pointer; }
+  .cfgfig.on { opacity:1; border-color:#1f7a4d; background:#f1faf4; box-shadow:0 0 0 1px #1f7a4d inset; }
+  .cfgfig .cft { display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:#39424f; }
+  .cfgfig .cft i { width:11px; height:11px; border-radius:50%; border:2px solid #aab1ba; background:#fff; flex:0 0 auto; }
+  .cfgfig.on .cft i { border-color:#1f7a4d; background:radial-gradient(circle,#1f7a4d 0 42%,#fff 46%); }
+  .cfgfig svg { display:block; width:100%; height:auto; }
+  .cfgfig svg .fg { fill:#fff; stroke:#9aa1ab; stroke-width:1.2; }
+  .cfgfig svg .gl { stroke:#dfe3e8; stroke-width:1; }
+  .cfgfig svg .bl { stroke:#111; stroke-width:2.6; }
+  .cfgfig svg .bd { fill:#111; }
+  .cfgfig svg .bl.b2, .cfgfig svg .bd.b2 { stroke:#2563eb; fill:#2563eb; }
+  .cfgfig svg .ft { font-size:8.5px; fill:#6b7280; text-anchor:middle;
+                    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif; }
+
   /* ---------- 保存・共有メニュー ---------- */
   #saveMenu { display:none; position:absolute; top:calc(100% - 2px); z-index:300; width:300px;
               background:#fff; color:#222; border:1px solid #c3c9d2; border-radius:9px;
@@ -371,6 +387,32 @@
         <option value="1">マスいっぱい（1日工事も線で出る）</option>
         <option value="0">マスの中心から中心（従来）</option>
       </select></div>
+    <div class="cfgfigs">
+      <div class="cfgfig" data-for="1">
+        <div class="cft"><i></i>マスいっぱい</div>
+        <svg viewBox="0 0 240 64">
+          <rect class="fg" x="8" y="12" width="224" height="30"/>
+          <path class="gl" d="M32 12v30M56 12v30M80 12v30M104 12v30M128 12v30M152 12v30M176 12v30M200 12v30"/>
+          <path class="bl" d="M56 27h24"/><circle class="bd" cx="56" cy="27" r="3.2"/><circle class="bd" cx="80" cy="27" r="3.2"/>
+          <path class="bl" d="M104 27h48"/><circle class="bd" cx="104" cy="27" r="3.2"/>
+          <path class="bl b2" d="M152 27h72"/><circle class="bd" cx="152" cy="27" r="3.2"/><circle class="bd b2" cx="224" cy="27" r="3.2"/>
+          <text class="ft" x="68" y="56">1日＝1マス分の線</text>
+          <text class="ft" x="164" y="56">続きは点がぴったり重なる</text>
+        </svg>
+      </div>
+      <div class="cfgfig" data-for="0">
+        <div class="cft"><i></i>マスの中心から中心（従来）</div>
+        <svg viewBox="0 0 240 64">
+          <rect class="fg" x="8" y="12" width="224" height="30"/>
+          <path class="gl" d="M32 12v30M56 12v30M80 12v30M104 12v30M128 12v30M152 12v30M176 12v30M200 12v30"/>
+          <circle class="bd" cx="68" cy="27" r="3.6"/>
+          <path class="bl" d="M116 27h48"/><circle class="bd" cx="116" cy="27" r="3.2"/>
+          <path class="bl b2" d="M164 27h48"/><circle class="bd" cx="164" cy="27" r="3.2"/><circle class="bd b2" cx="212" cy="27" r="3.2"/>
+          <text class="ft" x="68" y="56">1日＝点だけ</text>
+          <text class="ft" x="164" y="56">マスの真ん中でつながる</text>
+        </svg>
+      </div>
+    </div>
     <div class="prow"><span class="pl">同じ日に<br>2工程</span>
       <select id="inJoin">
         <option value="0">下の段に分ける</option>
@@ -847,12 +889,15 @@ function barRuns(b, lo, hi) {
   return runs;
 }
 /* 区間の左右の位置（colLeft は「その日のマスの左端」を返す関数） */
+/* 同じ段で端点を共有するとき、左のバーは共有マスの手前で止める（点を1つに重ねる） */
+const JTRIM = {};
 function runEdges(b, run, colLeft, cw, realStart, realEnd) {
   const full = S.fullCell !== false;
   const bEnd = Math.min(b.end, S.days);
+  const cut = full && JTRIM[b.id] && run.b === bEnd && realEnd;
   const x1 = full ? colLeft(run.a)
                   : ((run.a === b.start && realStart) ? colLeft(run.a) + cw / 2 : colLeft(run.a));
-  const x2 = full ? colLeft(run.b) + cw
+  const x2 = full ? (colLeft(run.b) + (cut ? 0 : cw))
                   : ((run.b === bEnd && realEnd) ? colLeft(run.b) + cw / 2 : colLeft(run.b) + cw);
   return [x1, x2];
 }
@@ -875,7 +920,13 @@ function laneMap(rowId) {
     .forEach(b => { let L = Math.max(0, b.lane); while (!fits(L, b)) L++; put(L, b); });
   bs.filter(b => !Number.isInteger(b.lane)).sort((a,b) => a.start - b.start || a.end - b.end)
     .forEach(b => { let L = 0; while (!fits(L, b)) L++; put(L, b); });
-  return { map, lanes: Math.max(1, occ.length) };
+  /* 同じ段で「前の終わり＝次の始まり」になっているバー（＝左側）に印を付ける */
+  const trim = {};
+  bs.forEach(b => {
+    if (b.end <= b.start) return;
+    if (bs.some(x => x.id !== b.id && map[x.id] === map[b.id] && x.start === b.end)) trim[b.id] = true;
+  });
+  return { map, lanes: Math.max(1, occ.length), trim };
 }
 
 function rowTops(geo) {
@@ -885,6 +936,7 @@ function rowTops(geo) {
 }
 function computeGeo() {
   const rowH = [], lanesArr = [], maps = [], laneHs = [];
+  for (const k in JTRIM) delete JTRIM[k];
   S.rows.forEach(r => {
     if (r.type === "spacer") { rowH.push(r.h); lanesArr.push(0); maps.push({}); laneHs.push(BASE.LANEH); return; }
     const lm = laneMap(r.id);
@@ -897,6 +949,7 @@ function computeGeo() {
     });
     const lh = BASE.LANEH + extra;
     lanesArr.push(lm.lanes); maps.push(lm.map); laneHs.push(lh);
+    Object.assign(JTRIM, lm.trim);
     rowH.push(Math.max(r.h, lm.lanes * lh + 24));   // 上下に指で掴める余白を残す
   });
   return { rowH, lanesArr, maps, laneHs };
@@ -1013,7 +1066,9 @@ function renderRows(geo) {
     const t = el("div", "track", { width:trackW()+"px", height:P(H)+"px" });
     t.dataset.ri = ri;
     t.addEventListener("pointerdown", onTrackDown);
+    /* 左から順に置く＝あとに置く右側のバーが上にかぶる */
     S.bars.filter(b => b.row === row.id && b.start <= S.days)
+          .sort((a, b) => a.start - b.start || a.end - b.end)
           .forEach(b => t.appendChild(barEl(b, H, geo.maps[ri][b.id] || 0, geo.lanesArr[ri], geo.laneHs[ri])));
     r.appendChild(n); r.appendChild(t); R.appendChild(r);
   });
@@ -2107,7 +2162,8 @@ function buildCanvas(SC, D1, D2, OPT) {
   for (let ri = r1; ri <= r2; ri++) {
     const r = S.rows[ri];
     const H = geo.rowH[ri], lanes = geo.lanesArr[ri], LH = geo.laneHs[ri];
-    S.bars.filter(b => b.row === r.id).forEach(b => {
+    /* 左から順に描く＝あとから描く右側のバーが上にかぶる */
+    S.bars.filter(b => b.row === r.id).sort((a, b) => a.start - b.start || a.end - b.end).forEach(b => {
       if (b.end < d1 || b.start > d2) return;               // この用紙には出ない
       const lane = geo.maps[ri][b.id] || 0;
       const yc = ry + (H - lanes * LH) / 2 + lane * LH + LH * 0.40;
@@ -2124,8 +2180,9 @@ function buildCanvas(SC, D1, D2, OPT) {
       });
       if (b.dots !== false || x2 - x1 < 0.5) {
         g.fillStyle = col;
-        if (realStart) { g.beginPath(); g.arc(x1 + 2, yc, 3, 0, Math.PI * 2); g.fill(); }
-        if (realEnd)   { g.beginPath(); g.arc(x2 - 2, yc, 3, 0, Math.PI * 2); g.fill(); }
+        /* 点は線の端ぴったりに置く（隣のバーの点と重なるように） */
+        if (realStart) { g.beginPath(); g.arc(x1, yc, 3, 0, Math.PI * 2); g.fill(); }
+        if (realEnd)   { g.beginPath(); g.arc(x2, yc, 3, 0, Math.PI * 2); g.fill(); }
       }
       if (b.label) {
         const sz = b.fs || BASE.FS, ls = String(b.label).split("\n"), lh = sz * 1.22;
@@ -2466,6 +2523,7 @@ function syncFields() {
   $("#inNumFrom").value = S.numFrom || 1;
   $("#inJoin").value = (S.joinTouch === false) ? "0" : "1";
   $("#inFull").value = (S.fullCell === false) ? "0" : "1";
+  markFigs();
   $("#inRestDash").checked = (S.restDashDefault !== false);
   if ($("#inPaper") && S.paper) $("#inPaper").value = S.paper;
   $("#inRest").value = S.restWeekdays.slice().sort().join("");
@@ -2504,7 +2562,16 @@ $("#inDays").addEventListener("change", e => {
 $("#inZoom").addEventListener("input", e => { setZoom((+e.target.value) / 100); });
 $("#inShowNum").addEventListener("change", e => { S.showNum = e.target.checked; histPush(); render(); });
 $("#inJoin").addEventListener("change", e => { S.joinTouch = e.target.value === "1"; histPush(); render(); });
-$("#inFull").addEventListener("change", e => { S.fullCell = e.target.value === "1"; histPush(); render(); });
+$("#inFull").addEventListener("change", e => { S.fullCell = e.target.value === "1"; markFigs(); histPush(); render(); });
+/* 設定の参考図：今選ばれている方を強調。図そのものを押しても切り替わる */
+function markFigs() {
+  const v = ($("#inFull") && $("#inFull").value) || "1";
+  document.querySelectorAll(".cfgfig").forEach(f => f.classList.toggle("on", f.dataset.for === v));
+}
+document.querySelectorAll(".cfgfig").forEach(f => f.addEventListener("click", () => {
+  $("#inFull").value = f.dataset.for;
+  S.fullCell = f.dataset.for === "1"; markFigs(); histPush(); render();
+}));
 $("#inRestDash").addEventListener("change", e => { S.restDashDefault = e.target.checked; });
 $("#inNumFrom").addEventListener("change", e => {
   S.numFrom = Math.min(S.days, Math.max(1, +e.target.value || 1));
